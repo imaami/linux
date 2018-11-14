@@ -188,7 +188,7 @@ int sched_interactive __read_mostly = 1;
  * are allowed to run five seconds as real time tasks. This is the total over
  * all online cpus.
  */
-int sched_iso_cpu __read_mostly = 70;
+int sched_iso_cpu __read_mostly = 25;
 
 /*
  * sched_yield_type - Choose what sort of yield sched_yield will perform.
