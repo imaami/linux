@@ -22,8 +22,10 @@ obj-$(CONFIG_CPUFREQ_DT_PLATDEV)	+= cpufreq-dt-platdev.o
 # Link order matters. K8 is preferred to ACPI because of firmware bugs in early
 # K8 systems. This is still the case but acpi-cpufreq errors out so that
 # powernow-k8 can load then. ACPI is preferred to all other hardware-specific drivers.
-# speedstep-* is preferred over p4-clockmod.
+# speedstep-* is preferred over p4-clockmod. amd-cpufreq is preferred to acpi-cpufreq
+# for Fam17h or newer AMD processors. For others, acpi-cpufreq will be used.
 
+obj-$(CONFIG_X86_AMD_CPUFREQ)		+= amd-cpufreq.o
 obj-$(CONFIG_X86_ACPI_CPUFREQ)		+= acpi-cpufreq.o
 obj-$(CONFIG_X86_POWERNOW_K8)		+= powernow-k8.o
 obj-$(CONFIG_X86_PCC_CPUFREQ)		+= pcc-cpufreq.o

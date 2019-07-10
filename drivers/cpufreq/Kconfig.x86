@@ -32,6 +32,20 @@ config X86_PCC_CPUFREQ
 
 	  If in doubt, say N.
 
+config X86_AMD_CPUFREQ
+	tristate "AMD CPUFreq driver"
+	depends on ACPI_PROCESSOR
+	select ACPI_CPPC_LIB
+	help
+	  This adds a CPUFreq driver which uses CPPC methods
+	  as described in the ACPI v6.1 spec for newer (>= Fam17h)
+	  AMD processors.
+
+	  When this driver is enabled it will become preferred to
+	  the acpi-cpufreq driver.
+
+	  If in doubt, say N.
+
 config X86_ACPI_CPUFREQ
 	tristate "ACPI Processor P-States driver"
 	depends on ACPI_PROCESSOR
