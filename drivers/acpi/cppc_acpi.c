@@ -1343,12 +1343,12 @@ EXPORT_SYMBOL_GPL(cppc_get_perf_ctrs);
 /**
  * cppc_set_reg - Set the CPUs control register.
  * @cpu: CPU for which to set the register.
- * @perf_ctrls: ptr to cppc_perf_ctrls. See cppc_acpi.h
+ * @ctrls: ptr to cppc_ctrls. See cppc_acpi.h
  * @reg_idx: Index of the register being accessed
  *
  * Return: 0 for success, -ERRNO otherwise.
  */
-int cppc_set_reg(int cpu, struct cppc_perf_ctrls *perf_ctrls,
+int cppc_set_reg(int cpu, struct cppc_ctrls *ctrls,
 		 enum cppc_regs reg_idx)
 {
 	struct cpc_desc *cpc_desc = per_cpu(cpc_desc_ptr, cpu);
@@ -1364,20 +1364,23 @@ int cppc_set_reg(int cpu, struct cppc_perf_ctrls *perf_ctrls,
 	}
 
 	switch (reg_idx) {
+	case ENABLE:
+		value = ctrls->enable;
+		break;
 	case DESIRED_PERF:
-		value = perf_ctrls->desired_perf;
+		value = ctrls->desired_perf;
 		break;
 	case MAX_PERF:
-		value = perf_ctrls->max_perf;
+		value = ctrls->max_perf;
 		break;
 	case MIN_PERF:
-		value = perf_ctrls->min_perf;
+		value = ctrls->min_perf;
 		break;
 	case ENERGY_PERF:
-		value = perf_ctrls->energy_perf;
+		value = ctrls->energy_perf;
 		break;
 	case AUTO_SEL_ENABLE:
-		value = perf_ctrls->auto_sel_enable;
+		value = ctrls->auto_sel_enable;
 		break;
 	default:
 		pr_debug("CPC register index #%d not writeable\n", reg_idx);
@@ -1485,13 +1488,14 @@ int cppc_set_reg(int cpu, struct cppc_perf_ctrls *perf_ctrls,
 }
 EXPORT_SYMBOL_GPL(cppc_set_reg);
 
-int cppc_get_perf(int cpu, struct cppc_perf_ctrls *perf_ctrls)
+int cppc_get_ctrls(int cpu, struct cppc_ctrls *ctrls)
 {
 	struct cpc_desc *cpc_desc = per_cpu(cpc_desc_ptr, cpu);
 	struct cpc_register_resource *desired_reg, *max_reg, *min_reg;
 	struct cpc_register_resource *energy_reg, *auto_sel_enable_reg;
+	struct cpc_register_resource *enable_reg;
 	int pcc_ss_id = per_cpu(cpu_pcc_subspace_idx, cpu);
-	u64 desired, max, min, energy, auto_sel_enable;
+	u64 desired, max, min, energy, auto_sel_enable, enable;
 	struct cppc_pcc_data *pcc_ss_data = NULL;
 	int ret = 0, regs_in_pcc = 0;
 
@@ -1500,6 +1504,7 @@ int cppc_get_perf(int cpu, struct cppc_perf_ctrls *perf_ctrls)
 		return -ENODEV;
 	}
 
+	enable_reg = &cpc_desc->cpc_regs[ENABLE];
 	desired_reg = &cpc_desc->cpc_regs[DESIRED_PERF];
 	max_reg = &cpc_desc->cpc_regs[MAX_PERF];
 	min_reg = &cpc_desc->cpc_regs[MIN_PERF];
@@ -1509,7 +1514,7 @@ int cppc_get_perf(int cpu, struct cppc_perf_ctrls *perf_ctrls)
 	/* Check if any of the perf registers are in PCC */
 	if (CPC_IN_PCC(desired_reg) || CPC_IN_PCC(max_reg) ||
 	    CPC_IN_PCC(min_reg) || CPC_IN_PCC(energy_reg) ||
-	    CPC_IN_PCC(auto_sel_enable_reg)) {
+	    CPC_IN_PCC(auto_sel_enable_reg) || CPC_IN_PCC(enable_reg)) {
 		pcc_ss_data = pcc_data[pcc_ss_id];
 		down_write(&pcc_ss_data->pcc_lock);
 		regs_in_pcc = 1;
@@ -1521,8 +1526,12 @@ int cppc_get_perf(int cpu, struct cppc_perf_ctrls *perf_ctrls)
 		}
 	}
 
-	/* desired_perf is the only mandatory value in perf_ctrls */
+	/* desired_perf is the only mandatory value in ctrls */
 	if (cpc_read(cpu, desired_reg, &desired))
+		ret = -EFAULT;
+
+	if (CPC_SUP_BUFFER_ONLY(enable_reg) &&
+	    cpc_read(cpu, enable_reg, &enable))
 		ret = -EFAULT;
 
 	if (CPC_SUP_BUFFER_ONLY(max_reg) && cpc_read(cpu, max_reg, &max))
@@ -1540,11 +1549,12 @@ int cppc_get_perf(int cpu, struct cppc_perf_ctrls *perf_ctrls)
 		ret = -EFAULT;
 
 	if (!ret) {
-		perf_ctrls->desired_perf = desired;
-		perf_ctrls->max_perf = max;
-		perf_ctrls->min_perf = min;
-		perf_ctrls->energy_perf = energy;
-		perf_ctrls->auto_sel_enable = auto_sel_enable;
+		ctrls->enable = enable;
+		ctrls->desired_perf = desired;
+		ctrls->max_perf = max;
+		ctrls->min_perf = min;
+		ctrls->energy_perf = energy;
+		ctrls->auto_sel_enable = auto_sel_enable;
 	}
 
 out_err:
@@ -1552,7 +1562,7 @@ out_err:
 		up_write(&pcc_ss_data->pcc_lock);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(cppc_get_perf);
+EXPORT_SYMBOL_GPL(cppc_get_ctrls);
 
 /**
  * cppc_get_transition_latency - returns frequency transition latency in ns
