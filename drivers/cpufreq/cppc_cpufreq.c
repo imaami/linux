@@ -207,7 +207,7 @@ static int cppc_cpufreq_set_target(struct cpufreq_policy *policy,
 	freqs.new = target_freq;
 
 	cpufreq_freq_transition_begin(policy, &freqs);
-	ret = cppc_set_perf(cpu->cpu, &cpu->perf_ctrls);
+	ret = cppc_set_reg(cpu->cpu, &cpu->perf_ctrls, DESIRED_PERF);
 	cpufreq_freq_transition_end(policy, &freqs, ret != 0);
 
 	if (ret)
@@ -231,7 +231,7 @@ static void cppc_cpufreq_stop_cpu(struct cpufreq_policy *policy)
 
 	cpu->perf_ctrls.desired_perf = cpu->perf_caps.lowest_perf;
 
-	ret = cppc_set_perf(cpu_num, &cpu->perf_ctrls);
+	ret = cppc_set_reg(cpu_num, &cpu->perf_ctrls, DESIRED_PERF);
 	if (ret)
 		pr_debug("Err setting perf value:%d on CPU:%d. ret:%d\n",
 				cpu->perf_caps.lowest_perf, cpu_num, ret);
@@ -344,7 +344,7 @@ static int cppc_cpufreq_cpu_init(struct cpufreq_policy *policy)
 					cpu->perf_caps.highest_perf);
 	cpu->perf_ctrls.desired_perf = cpu->perf_caps.highest_perf;
 
-	ret = cppc_set_perf(cpu_num, &cpu->perf_ctrls);
+	ret = cppc_set_reg(cpu_num, &cpu->perf_ctrls, DESIRED_PERF);
 	if (ret)
 		pr_debug("Err setting perf value:%d on CPU:%d. ret:%d\n",
 				cpu->perf_caps.highest_perf, cpu_num, ret);
