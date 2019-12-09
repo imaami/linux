@@ -2,6 +2,10 @@
 /*
  * Scheduler internal types and methods:
  */
+#ifdef CONFIG_SCHED_PDS
+#include "pds_sched.h"
+#else
+
 #include <linux/sched.h>
 
 #include <linux/sched/autogroup.h>
@@ -2492,3 +2496,4 @@ static inline bool is_per_cpu_kthread(struct task_struct *p)
 	return true;
 }
 #endif
+#endif /* !CONFIG_SCHED_PDS */

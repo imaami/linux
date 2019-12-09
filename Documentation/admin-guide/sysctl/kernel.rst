@@ -82,6 +82,7 @@ show up in /proc/sys/kernel:
 - randomize_va_space
 - real-root-dev               ==> Documentation/admin-guide/initrd.rst
 - reboot-cmd                  [ SPARC only ]
+- rr_interval
 - rtsig-max
 - rtsig-nr
 - sched_energy_aware
@@ -105,6 +106,7 @@ show up in /proc/sys/kernel:
 - unknown_nmi_panic
 - watchdog
 - watchdog_thresh
+- yield_type
 - version
 
 
