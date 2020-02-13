@@ -2953,7 +2953,8 @@ static int futex_wait_multiple(struct futex_q *qs, int op,
 			       u32 count, ktime_t *abs_time)
 {
 	struct hrtimer_sleeper timeout, *to;
-	int ret, i, flags = 0, hint = 0;
+	int ret, flags = 0, hint = 0;
+	unsigned int i;
 
 	if (!(op & FUTEX_PRIVATE_FLAG))
 		flags |= FLAGS_SHARED;
@@ -4149,11 +4150,11 @@ long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
  */
 inline struct futex_q *futex_read_wait_block(u32 __user *uaddr, u32 count)
 {
-	int i;
+	unsigned int i;
 	struct futex_q *qs;
 	struct futex_wait_block fwb;
 	struct futex_wait_block __user *entry =
-		(struct futex_wait_block __user *) uaddr;
+		(struct futex_wait_block __user *)uaddr;
 
 	if (!count || count > FUTEX_MULTIPLE_MAX_COUNT)
 		return ERR_PTR(-EINVAL);
@@ -4168,8 +4169,8 @@ inline struct futex_q *futex_read_wait_block(u32 __user *uaddr, u32 count)
 			return ERR_PTR(-EFAULT);
 		}
 
-		qs[i].uval = fwb.val;
 		qs[i].uaddr = fwb.uaddr;
+		qs[i].uval = fwb.val;
 		qs[i].bitset = fwb.bitset;
 	}
 
@@ -4213,9 +4214,10 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
 		int ret;
 		struct futex_q *qs;
 
+#ifdef CONFIG_X86_X32
 		if (unlikely(in_x32_syscall()))
 			return -ENOSYS;
-
+#endif
 		qs = futex_read_wait_block(uaddr, val);
 
 		if (IS_ERR(qs))
@@ -4414,11 +4416,11 @@ struct compat_futex_wait_block {
 inline struct futex_q *compat_futex_read_wait_block(u32 __user *uaddr,
 						    u32 count)
 {
-	int i;
+	unsigned int i;
 	struct futex_q *qs;
 	struct compat_futex_wait_block fwb;
 	struct compat_futex_wait_block __user *entry =
-		(struct compat_futex_wait_block __user *) uaddr;
+		(struct compat_futex_wait_block __user *)uaddr;
 
 	if (!count || count > FUTEX_MULTIPLE_MAX_COUNT)
 		return ERR_PTR(-EINVAL);
