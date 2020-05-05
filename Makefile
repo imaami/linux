@@ -15,7 +15,7 @@ NAME = Kleptomaniac Octopus
 PHONY := _all
 _all:
 
-CKVERSION = -ck1
+CKVERSION = -ck2
 CKNAME = MuQSS Powered
 EXTRAVERSION := $(EXTRAVERSION)$(CKVERSION)
 
