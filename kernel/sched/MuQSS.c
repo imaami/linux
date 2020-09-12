@@ -172,10 +172,10 @@ __setup("rqshare=", set_rqshare);
 
 /*
  * This is the time all tasks within the same priority round robin.
- * Value is in ms and set to a minimum of 6ms.
+ * Value is in ms and set to a minimum of 4ms.
  * Tunable via /proc interface.
  */
-int rr_interval __read_mostly = 6;
+int rr_interval __read_mostly = 4;
 
 /*
  * Tunable to choose whether to prioritise latency or throughput, simple
