@@ -83,6 +83,18 @@ enum {
 	NR_CPU_AFFINITY_CHK_LEVEL
 };
 
+/*
+ * This allows printing both to /proc/sched_debug and
+ * to the console
+ */
+#define SEQ_printf(m, x...)			\
+ do {						\
+	if (m)					\
+		seq_printf(m, x);		\
+	else					\
+		pr_cont(x);			\
+ } while (0)
+
 static inline void print_scheduler_version(void)
 {
 	printk(KERN_INFO "pds: PDS-mq CPU Scheduler 0.99o by Alfred Chen and kept alive artificially by Tk-Glitch.\n");
@@ -6477,7 +6489,10 @@ void ia64_set_curr_task(int cpu, struct task_struct *p)
 #ifdef CONFIG_SCHED_DEBUG
 void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
 			  struct seq_file *m)
-{}
+{
+	SEQ_printf(m, "%s (%d, #threads: %d)\n", p->comm, task_pid_nr_ns(p, ns),
+						get_nr_threads(p));
+}
 
 void proc_sched_set_task(struct task_struct *p)
 {}
