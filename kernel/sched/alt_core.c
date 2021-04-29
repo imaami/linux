@@ -3549,6 +3549,9 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		 * finish_task_switch()'s mmdrop().
 		 */
 		switch_mm_irqs_off(prev->active_mm, next->mm, next);
+#ifdef CONFIG_LRU_GEN
+		lru_gen_activate_mm(next->mm);
+#endif
 
 		if (!prev->mm) {                        // from kernel
 			/* will mmdrop() in finish_task_switch(). */
