@@ -643,7 +643,7 @@ static int __futex_waitv(struct futex_waiter_head *futexv, unsigned int nr_futex
 	return ret;
 }
 
-static long ksys_futex_wait(void __user *uaddr, u64 val, unsigned int flags,
+static long ksys_futex_wait(void __user *uaddr, unsigned int val, unsigned int flags,
 			    struct __kernel_timespec __user *timo)
 {
 	bool shared = (flags & FUTEX_SHARED_FLAG) ? true : false;
@@ -683,15 +683,6 @@ static long ksys_futex_wait(void __user *uaddr, u64 val, unsigned int flags,
 	return __futex_waitv(futexv, 1, timo, flags);
 }
 
-#ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE4(compat_futex_wait, void __user *, uaddr, compat_u64, val,
-		       unsigned int, flags,
-		       struct __kernel_timespec __user *, timo)
-{
-	return ksys_futex_wait(uaddr, val, flags, timo);
-}
-#endif
-
 /**
  * sys_futex_wait - Wait on a futex address if (*uaddr) == val
  * @uaddr: User address of futex
@@ -705,7 +696,7 @@ COMPAT_SYSCALL_DEFINE4(compat_futex_wait, void __user *, uaddr, compat_u64, val,
  *
  * Returns 0 on success, error code otherwise.
  */
-SYSCALL_DEFINE4(futex_wait, void __user *, uaddr, u64, val, unsigned int, flags,
+SYSCALL_DEFINE4(futex_wait, void __user *, uaddr, unsigned int, val, unsigned int, flags,
 		struct __kernel_timespec __user *, timo)
 {
 	return ksys_futex_wait(uaddr, val, flags, timo);
