@@ -18,7 +18,7 @@ $(if $(filter __%, $(MAKECMDGOALS)), \
 PHONY := __all
 __all:
 
-CKVERSION = -ck1
+CKVERSION = -cock1
 CKNAME = MuQSS Powered
 EXTRAVERSION := $(EXTRAVERSION)$(CKVERSION)
 
