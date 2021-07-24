@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 5.12.4-cock1 Kernel Configuration
+# Linux/x86 5.12.19-cock1 Kernel Configuration
 #
 CONFIG_CC_VERSION_TEXT="gcc-10 (Debian 10.2.1-6) 10.2.1 20210110"
 CONFIG_CC_IS_GCC=y
@@ -2623,6 +2623,7 @@ CONFIG_POWER_SUPPLY_HWMON=y
 # CONFIG_CHARGER_BQ256XX is not set
 # CONFIG_CHARGER_SMB347 is not set
 # CONFIG_BATTERY_GAUGE_LTC2941 is not set
+# CONFIG_BATTERY_RT5033 is not set
 # CONFIG_CHARGER_RT9455 is not set
 # CONFIG_CHARGER_BD99954 is not set
 CONFIG_HWMON=y
@@ -4272,7 +4273,6 @@ CONFIG_EDAC_DECODE_MCE=y
 # CONFIG_EDAC_I5000 is not set
 # CONFIG_EDAC_I5100 is not set
 # CONFIG_EDAC_I7300 is not set
-# CONFIG_EDAC_IGEN6 is not set
 CONFIG_RTC_LIB=y
 CONFIG_RTC_MC146818_LIB=y
 CONFIG_RTC_CLASS=y
@@ -4376,7 +4376,6 @@ CONFIG_DMA_ACPI=y
 # CONFIG_INTEL_IDXD is not set
 # CONFIG_INTEL_IOATDMA is not set
 # CONFIG_PLX_DMA is not set
-# CONFIG_XILINX_ZYNQMP_DPDMA is not set
 # CONFIG_QCOM_HIDMA_MGMT is not set
 # CONFIG_QCOM_HIDMA is not set
 # CONFIG_DW_DMAC is not set
@@ -4793,7 +4792,6 @@ CONFIG_PSTORE_COMPRESS_DEFAULT="deflate"
 # CONFIG_PSTORE_CONSOLE is not set
 # CONFIG_PSTORE_PMSG is not set
 # CONFIG_PSTORE_RAM is not set
-# CONFIG_PSTORE_BLK is not set
 # CONFIG_SYSV_FS is not set
 # CONFIG_UFS_FS is not set
 # CONFIG_EROFS_FS is not set
