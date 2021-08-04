@@ -998,14 +998,17 @@ static inline void update_mmu_cache(struct vm_area_struct *vma,
  * the pte is old and cannot be marked young. So we always end up with zeroed
  * page after fork() + CoW for pfn mappings. We don't always have a
  * hardware-managed access flag on arm64.
+ *
+ * The system-wide support isn't used when involving correctness and therefore
+ * is allowed to be flaky.
  */
-static inline bool arch_faults_on_old_pte(void)
+static inline bool arch_has_hw_pte_young(bool local)
 {
-	WARN_ON(preemptible());
+	WARN_ON(local && preemptible());
 
-	return !cpu_has_hw_af();
+	return cpu_has_hw_af();
 }
-#define arch_faults_on_old_pte		arch_faults_on_old_pte
+#define arch_has_hw_pte_young		arch_has_hw_pte_young
 
 /*
  * Experimentally, it's cheap to set the access flag in hardware and we
@@ -1013,7 +1016,7 @@ static inline bool arch_faults_on_old_pte(void)
  */
 static inline bool arch_wants_old_prefaulted_pte(void)
 {
-	return !arch_faults_on_old_pte();
+	return arch_has_hw_pte_young(true);
 }
 #define arch_wants_old_prefaulted_pte	arch_wants_old_prefaulted_pte
 
