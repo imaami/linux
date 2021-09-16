@@ -25,9 +25,9 @@
 #define MICRO_FREQUENCY_UP_THRESHOLD		(45)
 #define DEF_SAMPLING_DOWN_FACTOR		(5)
 #else
-#define DEF_FREQUENCY_UP_THRESHOLD		(63)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(70)
-#define DEF_SAMPLING_DOWN_FACTOR		(100)
+#define DEF_FREQUENCY_UP_THRESHOLD		(55)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(60)
+#define DEF_SAMPLING_DOWN_FACTOR		(5)
 #endif
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
@@ -135,7 +135,7 @@ static void dbs_freq_increase(struct cpufreq_policy *policy, unsigned int freq)
 }
 
 /*
- * Every sampling_rate, we check, if current idle time is less than 37%
+ * Every sampling_rate, we check, if current idle time is less than 45%
  * (default), then we try to increase frequency. Else, we adjust the frequency
  * proportional to load.
  */
