@@ -76,8 +76,8 @@ __read_mostly int sysctl_resched_latency_warn_once = 1;
 
 #define STOP_PRIO		(MAX_RT_PRIO - 1)
 
-/* Default time slice is 4 in ms, can be set via kernel parameter "sched_timeslice" */
-u64 sched_timeslice_ns __read_mostly = (4 << 20);
+/* Default time slice is 2 in ms, can be set via kernel parameter "sched_timeslice" */
+u64 sched_timeslice_ns __read_mostly = (2 << 20);
 
 static inline void requeue_task(struct task_struct *p, struct rq *rq);
 
