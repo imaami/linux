@@ -128,8 +128,10 @@ static inline const struct raid6_recov_calls *raid6_choose_recov(void)
 
 	for (best = NULL, algo = raid6_recov_algos; *algo; algo++)
 		if (!best || (*algo)->priority > best->priority)
-			if (!(*algo)->valid || (*algo)->valid())
+			if (!(*algo)->valid || (*algo)->valid()) {
 				best = *algo;
+				break;
+			}
 
 	if (best) {
 		raid6_2data_recov = best->data2;
@@ -198,8 +200,10 @@ static inline const struct raid6_calls *raid6_choose_gen(
 			}
 			preempt_enable();
 
-			if (best == *algo)
+			if (best == *algo) {
 				bestxorperf = perf;
+				break;
+			}
 
 			pr_info("raid6: %-8s xor() %5ld MB/s\n", (*algo)->name,
 				(perf * HZ * (disks-2)) >>
