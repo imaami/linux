@@ -474,6 +474,7 @@ static int validate_sample_rate_table_v2v3(struct snd_usb_audio *chip,
 	 */
 	switch (USB_ID_VENDOR(chip->usb_id)) {
 	case 0x07fd: /* MOTU */
+	case 0x1235: /* Focusrite Novation */
 		break;
 	default:
 		return 0; /* don't perform the validation as default */
