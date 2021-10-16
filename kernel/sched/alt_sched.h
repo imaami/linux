@@ -302,14 +302,16 @@ enum {
 #ifdef CONFIG_SCHED_SMT
 	SMT_LEVEL_SPACE_HOLDER,
 #endif
+	COREGROUP_ITMT_LEVEL_SPACE_HOLDER,
 	COREGROUP_LEVEL_SPACE_HOLDER,
+	CORE_ITMT_LEVEL_SPACE_HOLDER,
 	CORE_LEVEL_SPACE_HOLDER,
+	OTHER_ITMT_LEVEL_SPACE_HOLDER,
 	OTHER_LEVEL_SPACE_HOLDER,
 	NR_CPU_AFFINITY_LEVELS
 };
 
 DECLARE_PER_CPU(cpumask_t [NR_CPU_AFFINITY_LEVELS], sched_cpu_topo_masks);
-DECLARE_PER_CPU(cpumask_t *, sched_cpu_llc_mask);
 
 static inline int
 __best_mask_cpu(const cpumask_t *cpumask, const cpumask_t *mask)
