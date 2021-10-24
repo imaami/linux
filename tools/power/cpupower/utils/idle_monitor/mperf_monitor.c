@@ -118,6 +118,7 @@ static void get_aperf_mperf_rdpru(struct aperf_mperf *dest)
 	dest->mperf = ((low_m) | (high_m) << 32);
 }
 
+/*
 static int get_aperf_mperf_msr(struct aperf_mperf *dest, int cpu)
 {
 	int ret;
@@ -127,6 +128,7 @@ static int get_aperf_mperf_msr(struct aperf_mperf *dest, int cpu)
 
 	return ret;
 }
+*/
 
 static int mperf_get_count_percent(unsigned int id, double *percent,
 				   unsigned int cpu)
@@ -231,6 +233,7 @@ static __always_inline void mperf_measure_stats_rdpru_cpusched(int cpu)
 	mperf_measure_stats_rdpru(cpu);
 }
 
+/*
 static __always_inline void mperf_init_stats_msr(int cpu)
 {
 	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].previous, cpu);
@@ -266,11 +269,12 @@ static __always_inline void mperf_measure_stats_msr_cpusched(int cpu)
 
 	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].current, cpu);
 }
+*/
 
 static int mperf_start_rdpru_cpusched(void)
 {
 	int cpu;
-	unsigned long long dbg;
+	//unsigned long long dbg;
 
 	clock_gettime(CLOCK_REALTIME, &time_start);
 	mperf_rdtsc(&tsc_at_measure_start);
@@ -278,14 +282,14 @@ static int mperf_start_rdpru_cpusched(void)
 	for (cpu = 0; cpu < cpu_count; cpu++)
 		mperf_init_stats_rdpru_cpusched(cpu);
 
-	mperf_get_tsc(&dbg);
-	dprint("TSC diff: %llu\n", dbg - tsc_at_measure_start);
+	//mperf_rdtsc(&dbg);
+	//dprint("TSC diff: %llu\n", dbg - tsc_at_measure_start);
 	return 0;
 }
 
 static int mperf_stop_rdpru_cpusched(void)
 {
-	unsigned long long dbg;
+	//unsigned long long dbg;
 	int cpu;
 
 	for (cpu = 0; cpu < cpu_count; cpu++)
@@ -294,12 +298,13 @@ static int mperf_stop_rdpru_cpusched(void)
 	mperf_rdtsc(&tsc_at_measure_end);
 	clock_gettime(CLOCK_REALTIME, &time_end);
 
-	mperf_get_tsc(&dbg);
-	dprint("TSC diff: %llu\n", dbg - tsc_at_measure_end);
+	//mperf_rdtsc(&dbg);
+	//dprint("TSC diff: %llu\n", dbg - tsc_at_measure_end);
 
 	return 0;
 }
 
+/*
 static int mperf_start_rdpru(void)
 {
 	int cpu;
@@ -398,6 +403,7 @@ static int mperf_stop_msr(void)
 
 	return 0;
 }
+*/
 
 /*
  * Mperf register is defined to tick at P0 (maximum) frequency
@@ -496,7 +502,7 @@ static struct cpuidle_monitor *mperf_register(void)
 
 	mperf_monitor.flags.per_cpu_schedule = (cpupower_cpu_info.vendor ==
 						X86_VENDOR_AMD);
-
+/*
 	if (mperf_monitor.flags.per_cpu_schedule) {
 		if (!(cpupower_cpu_info.caps & CPUPOWER_CAP_AMD_RDPRU)) {
 			mperf_monitor.start = mperf_start_msr_cpusched;
@@ -509,7 +515,7 @@ static struct cpuidle_monitor *mperf_register(void)
 		mperf_monitor.start = mperf_start_msr;
 		mperf_monitor.stop = mperf_stop_msr;
 	}
-
+*/
 	mperf_monitor.name_len = strlen(mperf_monitor.name);
 	return &mperf_monitor;
 }
