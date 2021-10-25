@@ -17,6 +17,7 @@
 #include "cpufreq.h"
 #include "cpuidle.h"
 #include "helpers/helpers.h"
+#include "builtin.h"
 
 #define NORM_FREQ_LEN 32
 

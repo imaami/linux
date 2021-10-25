@@ -15,6 +15,7 @@
 #include "helpers/helpers.h"
 #include "helpers/sysfs.h"
 #include "helpers/bitmask.h"
+#include "builtin.h"
 
 static struct option set_opts[] = {
 	{"perf-bias", required_argument, NULL, 'b'},
