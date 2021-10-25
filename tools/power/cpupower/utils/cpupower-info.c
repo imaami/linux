@@ -14,6 +14,7 @@
 
 #include "helpers/helpers.h"
 #include "helpers/sysfs.h"
+#include "builtin.h"
 
 static struct option set_opts[] = {
      {"perf-bias", optional_argument, NULL, 'b'},

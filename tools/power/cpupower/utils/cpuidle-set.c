@@ -12,6 +12,7 @@
 #include <cpuidle.h>
 
 #include "helpers/helpers.h"
+#include "builtin.h"
 
 static struct option info_opts[] = {
      {"disable",	required_argument,		NULL, 'd'},
