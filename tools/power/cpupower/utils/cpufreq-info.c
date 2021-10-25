@@ -17,6 +17,7 @@
 #include "helpers/sysfs.h"
 #include "helpers/helpers.h"
 #include "helpers/bitmask.h"
+#include "builtin.h"
 
 #define LINE_LEN 10
 

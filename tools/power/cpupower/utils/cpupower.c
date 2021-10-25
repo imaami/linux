@@ -22,7 +22,7 @@
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
-static int cmd_help(int argc, const char **argv);
+static int cmd_help(int argc, char **argv);
 
 /* Global cpu_info object available for all binaries
  * Info only retrieved from CPU 0
@@ -45,7 +45,7 @@ static void print_help(void);
 
 struct cmd_struct {
 	const char *cmd;
-	int (*main)(int, const char **);
+	int (*main)(int, char **);
 	int needs_root;
 };
 
@@ -102,7 +102,7 @@ static int print_man_page(const char *subpage)
 	return -EINVAL;
 }
 
-static int cmd_help(int argc, const char **argv)
+static int cmd_help(int argc, char **argv)
 {
 	if (argc > 1) {
 		print_man_page(argv[1]); /* exits within execlp() */
@@ -119,7 +119,7 @@ static void print_version(void)
 	printf(_("Report errors and bugs to %s, please.\n"), PACKAGE_BUGREPORT);
 }
 
-static void handle_options(int *argc, const char ***argv)
+static void handle_options(int *argc, char ***argv)
 {
 	int ret, x, new_argc = 0;
 
@@ -171,9 +171,9 @@ static void handle_options(int *argc, const char ***argv)
 	*argv += new_argc;
 }
 
-int main(int argc, const char *argv[])
+int main(int argc, char **argv)
 {
-	const char *cmd;
+	char *cmd;
 	unsigned int i, ret;
 	struct stat statbuf;
 	struct utsname uts;
@@ -184,7 +184,7 @@ int main(int argc, const char *argv[])
 	offline_cpus = bitmask_alloc(sysconf(_SC_NPROCESSORS_CONF));
 
 	argc--;
-	argv += 1;
+	argv++;
 
 	handle_options(&argc, &argv);
 
@@ -200,8 +200,9 @@ int main(int argc, const char *argv[])
 
 	/* Turn "perf cmd --help" into "perf help cmd" */
 	if (argc > 1 && !strcmp(argv[1], "--help")) {
+		cmd = argv[1] + 2;
 		argv[1] = argv[0];
-		argv[0] = cmd = "help";
+		argv[0] = cmd;
 	}
 
 	base_cpu = sched_getcpu();
