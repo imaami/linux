@@ -6,6 +6,7 @@
  */
 
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -25,7 +26,7 @@
 #define DEF(x) & x ## _monitor ,
 struct cpuidle_monitor *all_monitors[] = {
 #include "idle_monitors.def"
-0
+NULL
 };
 
 int cpu_count;
@@ -64,52 +65,42 @@ long long timespec_diff_us(struct timespec start, struct timespec end)
 	return (temp.tv_sec * 1000000) + (temp.tv_nsec / 1000);
 }
 
-void print_n_spaces(int n)
-{
-	int x;
-	for (x = 0; x < n; x++)
-		printf(" ");
-}
-
 /*s is filled with left and right spaces
  *to make its length atleast n+1
  */
-int fill_string_with_spaces(char *s, int n)
+static void fill_string_with_spaces(char *s, size_t len, size_t n)
 {
 	char *temp;
-	int len = strlen(s);
 
 	if (len >= n)
-		return -1;
+		return;
 
-	temp = malloc(sizeof(char) * (n+1));
+	temp = malloc(n + 1u);
 	for (; len < n; len++)
 		s[len] = ' ';
 	s[len] = '\0';
-	snprintf(temp, n+1, " %s", s);
+	snprintf(temp, n+1u, " %s", s);
 	strcpy(s, temp);
 	free(temp);
-	return 0;
 }
 
 #define MAX_COL_WIDTH 6
-void print_header(int topology_depth)
+static void print_header(int topology_depth)
 {
-	int unsigned mon;
-	int state, need_len;
+	unsigned int mon, state, need_len;
 	cstate_t s;
 	char buf[128] = "";
 
-	fill_string_with_spaces(buf, topology_depth * 5 - 1);
+	fill_string_with_spaces(buf, 0, topology_depth * 5 - 1);
 	printf("%s|", buf);
 
 	for (mon = 0; mon < avail_monitors; mon++) {
-		need_len = monitors[mon]->hw_states_num * (MAX_COL_WIDTH + 1)
-			- 1;
+		need_len = monitors[mon]->hw_states_num * (MAX_COL_WIDTH + 1u)
+			- 1u;
 		if (mon != 0)
 			printf("||");
 		sprintf(buf, "%s", monitors[mon]->name);
-		fill_string_with_spaces(buf, need_len);
+		fill_string_with_spaces(buf, monitors[mon]->name_len, need_len);
 		printf("%s", buf);
 	}
 	printf("\n");
@@ -129,7 +120,8 @@ void print_header(int topology_depth)
 				printf("|");
 			s = monitors[mon]->hw_states[state];
 			sprintf(buf, "%s", s.name);
-			fill_string_with_spaces(buf, MAX_COL_WIDTH);
+			fill_string_with_spaces(buf, strlen(s.name),
+						MAX_COL_WIDTH);
 			printf("%s", buf);
 		}
 		printf(" ");
@@ -137,11 +129,10 @@ void print_header(int topology_depth)
 	printf("\n");
 }
 
-
-void print_results(int topology_depth, int cpu)
+static void print_results(int topology_depth, int cpu)
 {
-	unsigned int mon;
-	int state, ret;
+	unsigned int mon, state;
+	int ret;
 	double percent;
 	unsigned long long result;
 	cstate_t s;
@@ -255,14 +246,13 @@ static void parse_monitor_param(char *param)
 	avail_monitors = hits;
 }
 
-void list_monitors(void)
+static void list_monitors(void)
 {
-	unsigned int mon;
-	int state;
+	unsigned int mon, state;
 	cstate_t s;
 
 	for (mon = 0; mon < avail_monitors; mon++) {
-		printf(_("Monitor \"%s\" (%d states) - Might overflow after %u "
+		printf(_("Monitor \"%s\" (%u states) - Might overflow after %u "
 			 "s\n"),
 			monitors[mon]->name, monitors[mon]->hw_states_num,
 			monitors[mon]->overflow_s);
@@ -279,7 +269,7 @@ void list_monitors(void)
 	}
 }
 
-int fork_it(char **argv)
+static int fork_it(char **argv)
 {
 	int status;
 	unsigned int num;
@@ -322,7 +312,7 @@ int fork_it(char **argv)
 	return 0;
 }
 
-int do_interval_measure(int i)
+static int do_interval_measure(const struct timespec *i)
 {
 	unsigned int num;
 	int cpu;
@@ -332,12 +322,13 @@ int do_interval_measure(int i)
 			bind_cpu(cpu);
 
 	for (num = 0; num < avail_monitors; num++) {
-		dprint("HW C-state residency monitor: %s - States: %d\n",
+		dprint("HW C-state residency monitor: %s - States: %u\n",
 		       monitors[num]->name, monitors[num]->hw_states_num);
 		monitors[num]->start();
 	}
 
-	sleep(i);
+	if (nanosleep(i, NULL))
+		return -1;
 
 	if (wake_cpus)
 		for (cpu = 0; cpu < cpu_count; cpu++)
@@ -387,9 +378,11 @@ static void cmdline(int argc, char *argv[])
 
 int cmd_monitor(int argc, char **argv)
 {
+	bool should_fork;
 	unsigned int num;
 	struct cpuidle_monitor *test_mon;
-	int cpu;
+	int cpu, topo_depth;
+	struct timespec ival_ts;
 
 	cmdline(argc, argv);
 	cpu_count = get_cpu_topology(&cpu_top);
@@ -409,17 +402,22 @@ int cmd_monitor(int argc, char **argv)
 
 	for (num = 0; all_monitors[num]; num++) {
 		dprint("Try to register: %s\n", all_monitors[num]->name);
+
 		test_mon = all_monitors[num]->do_register();
-		if (test_mon) {
-			if (test_mon->flags.needs_root && !run_as_root) {
-				fprintf(stderr, _("Available monitor %s needs "
-					  "root access\n"), test_mon->name);
-				continue;
-			}
-			monitors[avail_monitors] = test_mon;
-			dprint("%s registered\n", all_monitors[num]->name);
-			avail_monitors++;
+		if (!test_mon)
+			continue;
+
+		if (!test_mon->name_len && test_mon->name[0])
+			test_mon->name_len = strlen(test_mon->name);
+
+		if (test_mon->flags.needs_root && !run_as_root) {
+			fprintf(stderr, _("Available monitor %s needs "
+				  "root access\n"), test_mon->name);
+			continue;
 		}
+
+		monitors[avail_monitors++] = test_mon;
+		dprint("%s registered\n", test_mon->name);
 	}
 
 	if (avail_monitors == 0) {
@@ -435,30 +433,35 @@ int cmd_monitor(int argc, char **argv)
 	if (mode == show)
 		parse_monitor_param(show_monitors_param);
 
+	topo_depth = (cpu_top.pkgs > 1) ? 3 : 1;
+
 	dprint("Packages: %d - Cores: %d - CPUs: %d\n",
 	       cpu_top.pkgs, cpu_top.cores, cpu_count);
 
 	/*
 	 * if any params left, it must be a command to fork
 	 */
-	if (argc - optind)
+	should_fork = !!(argc - optind);
+
+	if (should_fork) {
 		fork_it(argv + optind);
-	else
-		do_interval_measure(interval);
+	} else {
+		ival_ts.tv_sec = interval / 1000;
+		ival_ts.tv_nsec = (interval % 1000) * 1000000;
+	measure:
+		do_interval_measure(&ival_ts);
+		fputs("\e[H", stdout);
+	}
 
 	/* ToDo: Topology parsing needs fixing first to do
 	   this more generically */
-	if (cpu_top.pkgs > 1)
-		print_header(3);
-	else
-		print_header(1);
-
+	print_header(topo_depth);
 	for (cpu = 0; cpu < cpu_count; cpu++) {
-		if (cpu_top.pkgs > 1)
-			print_results(3, cpu);
-		else
-			print_results(1, cpu);
+		print_results(topo_depth, cpu);
 	}
+
+	if (!should_fork)
+		goto measure;
 
 	for (num = 0; num < avail_monitors; num++)
 		monitors[num]->unregister();
