@@ -6,21 +6,21 @@
  */
 
 
+#include <libgen.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <libgen.h>
+#include <time.h>
+#include <unistd.h>
 
+#include "builtin.h"
+#include "helpers/helpers.h"
 #include "idle_monitor/cpupower-monitor.h"
 #include "idle_monitor/idle_monitors.h"
-#include "helpers/helpers.h"
-#include "builtin.h"
 
 /* Define pointers to all monitors.  */
 #define DEF(x) & x ## _monitor ,
@@ -45,12 +45,6 @@ static unsigned int wake_cpus;
 
 /* ToDo: Document this in the manpage */
 static char range_abbr[RANGE_MAX] = { 'T', 'C', 'P', 'M', };
-
-static void print_wrong_arg_exit(void)
-{
-	printf(_("invalid or unknown argument\n"));
-	exit(EXIT_FAILURE);
-}
 
 long long timespec_diff_us(struct timespec start, struct timespec end)
 {
@@ -185,6 +179,7 @@ static void print_results(int topology_depth, int cpu)
 			}
 		}
 	}
+
 	/*
 	 * The monitor could still provide useful data, for example
 	 * AMD HW counters partly sit in PCI config space.
@@ -195,8 +190,9 @@ static void print_results(int topology_depth, int cpu)
 	    cpu_top.core_info[cpu].pkg != -1) {
 		printf(_(" *is offline\n"));
 		return;
-	} else
-		printf("\n");
+	}
+
+	printf("\n");
 }
 
 
@@ -271,7 +267,7 @@ static void list_monitors(void)
 
 static int fork_it(char **argv)
 {
-	int status;
+	int status = 0;
 	unsigned int num;
 	unsigned long long timediff;
 	pid_t child_pid;
@@ -450,7 +446,7 @@ int cmd_monitor(int argc, char **argv)
 		ival_ts.tv_nsec = (interval % 1000) * 1000000;
 	measure:
 		do_interval_measure(&ival_ts);
-		fputs("\e[H", stdout);
+		fputs("\033[H", stdout);
 	}
 
 	/* ToDo: Topology parsing needs fixing first to do

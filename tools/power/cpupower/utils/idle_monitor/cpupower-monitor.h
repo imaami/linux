@@ -6,6 +6,7 @@
 #ifndef __CPUIDLE_INFO_HW__
 #define __CPUIDLE_INFO_HW__
 
+#include <stdbool.h>
 #include <stdarg.h>
 #include <time.h>
 
@@ -61,8 +62,8 @@ struct cpuidle_monitor {
 	void (*unregister)(void);
 	unsigned int overflow_s;
 	struct {
-		unsigned int needs_root:1;
-		unsigned int per_cpu_schedule:1;
+		bool needs_root:1;
+		bool per_cpu_schedule:1;
 	} flags;
 };
 

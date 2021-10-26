@@ -12,9 +12,10 @@
 #include <libintl.h>
 #include <locale.h>
 #include <stdbool.h>
+#include <stdnoreturn.h>
 
+#include "cpupower.h"
 #include "helpers/bitmask.h"
-#include <cpupower.h>
 
 /* Internationalization ****************************/
 #ifdef NLS
@@ -33,7 +34,7 @@
 #endif
 /* Internationalization ****************************/
 
-extern int run_as_root;
+extern bool run_as_root;
 extern int base_cpu;
 extern struct bitmask *cpus_chosen;
 
@@ -206,5 +207,10 @@ void get_cpustate(void);
 void print_online_cpus(void);
 void print_offline_cpus(void);
 void print_speed(unsigned long speed, int no_rounding);
+
+/*
+ * Miscellaneous
+ */
+extern noreturn void print_wrong_arg_exit(void);
 
 #endif /* __CPUPOWERUTILS_HELPERS__ */
