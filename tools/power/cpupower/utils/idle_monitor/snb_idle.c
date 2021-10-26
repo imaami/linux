@@ -170,11 +170,11 @@ static struct cpuidle_monitor *snb_register(void)
 		current_count[num]  = calloc(cpu_count,
 					sizeof(unsigned long long));
 	}
-	intel_snb_monitor.name_len = strlen(intel_snb_monitor.name);
+
 	return &intel_snb_monitor;
 }
 
-void snb_unregister(void)
+static void snb_unregister(void)
 {
 	int num;
 	free(is_valid);
@@ -186,6 +186,7 @@ void snb_unregister(void)
 
 struct cpuidle_monitor intel_snb_monitor = {
 	.name			= "SandyBridge",
+	.name_len		= sizeof("SandyBridge") - 1u,
 	.hw_states		= snb_cstates,
 	.hw_states_num		= SNB_CSTATE_COUNT,
 	.start			= snb_start,

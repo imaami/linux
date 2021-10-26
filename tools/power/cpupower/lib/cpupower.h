@@ -25,9 +25,9 @@ struct cpuid_core_info {
 extern "C" {
 #endif
 
-int get_cpu_topology(struct cpupower_topology *cpu_top);
-void cpu_topology_release(struct cpupower_topology cpu_top);
-int cpupower_is_cpu_online(unsigned int cpu);
+extern int get_cpu_topology(struct cpupower_topology *cpu_top);
+extern void cpu_topology_release(struct cpupower_topology cpu_top);
+extern int cpupower_is_cpu_online(unsigned int cpu);
 
 #ifdef __cplusplus
 }

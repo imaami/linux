@@ -8,6 +8,7 @@
 
 #if defined(__i386__) || defined(__x86_64__)
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -266,27 +267,22 @@ static int amd_fam14h_stop(void)
 	return 0;
 }
 
-static int is_nbp1_capable(void)
+static __always_inline bool is_nbp1_capable(void)
 {
-	uint32_t val;
-	val = pci_read_long(amd_fam14h_pci_dev, PCI_NBP1_CAP_OFFSET);
-	return val & (1 << 31);
+	uint32_t val = pci_read_long(amd_fam14h_pci_dev, PCI_NBP1_CAP_OFFSET);
+	return !!(val & (1u << 31));
 }
 
-struct cpuidle_monitor *amd_fam14h_register(void)
+static struct cpuidle_monitor *amd_fam14h_register(void)
 {
 	int num;
 
 	if (cpupower_cpu_info.vendor != X86_VENDOR_AMD)
 		return NULL;
 
-	if (cpupower_cpu_info.family == 0x14)
-		strncpy(amd_fam14h_monitor.name, "Fam_14h",
-			MONITOR_NAME_LEN - 1);
-	else if (cpupower_cpu_info.family == 0x12)
-		strncpy(amd_fam14h_monitor.name, "Fam_12h",
-			MONITOR_NAME_LEN - 1);
-	else
+	if (cpupower_cpu_info.family == 0x12)
+		amd_fam14h_monitor.name[5] = '2';
+	else if (cpupower_cpu_info.family != 0x14)
 		return NULL;
 
 	/* We do not alloc for nbp1 machine wide counter */
@@ -304,9 +300,8 @@ struct cpuidle_monitor *amd_fam14h_register(void)
 		return NULL;
 
 	if (!is_nbp1_capable())
-		amd_fam14h_monitor.hw_states_num = AMD_FAM14H_STATE_NUM - 1;
+		amd_fam14h_monitor.hw_states_num = AMD_FAM14H_STATE_NUM - 1u;
 
-	amd_fam14h_monitor.name_len = strlen(amd_fam14h_monitor.name);
 	return &amd_fam14h_monitor;
 }
 
@@ -321,7 +316,8 @@ static void amd_fam14h_unregister(void)
 }
 
 struct cpuidle_monitor amd_fam14h_monitor = {
-	.name			= "",
+	.name			= "Fam_14h",
+	.name_len		= sizeof("Fam_14h") - 1u,
 	.hw_states		= amd_fam14h_cstates,
 	.hw_states_num		= AMD_FAM14H_STATE_NUM,
 	.start			= amd_fam14h_start,

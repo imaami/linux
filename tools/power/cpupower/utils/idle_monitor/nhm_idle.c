@@ -185,11 +185,10 @@ struct cpuidle_monitor *intel_nhm_register(void)
 					sizeof(unsigned long long));
 	}
 
-	intel_nhm_monitor.name_len = strlen(intel_nhm_monitor.name);
 	return &intel_nhm_monitor;
 }
 
-void intel_nhm_unregister(void)
+static void intel_nhm_unregister(void)
 {
 	int num;
 
@@ -202,6 +201,7 @@ void intel_nhm_unregister(void)
 
 struct cpuidle_monitor intel_nhm_monitor = {
 	.name			= "Nehalem",
+	.name_len		= sizeof("Nehalem") - 1u,
 	.hw_states_num		= NHM_CSTATE_COUNT,
 	.hw_states		= nhm_cstates,
 	.start			= nhm_start,

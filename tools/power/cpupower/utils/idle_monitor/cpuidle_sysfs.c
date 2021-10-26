@@ -43,14 +43,15 @@ static int cpuidle_get_count_percent(unsigned int id, double *percent,
 
 static int cpuidle_start(void)
 {
-	int cpu, state;
+	int cpu;
+	unsigned int state;
 	clock_gettime(CLOCK_REALTIME, &start_time);
 	for (cpu = 0; cpu < cpu_count; cpu++) {
 		for (state = 0; state < cpuidle_sysfs_monitor.hw_states_num;
 		     state++) {
 			previous_count[cpu][state] =
 				cpuidle_state_time(cpu, state);
-			dprint("CPU %d - State: %d - Val: %llu\n",
+			dprint("CPU %d - State: %u - Val: %llu\n",
 			       cpu, state, previous_count[cpu][state]);
 		}
 	}
@@ -59,7 +60,8 @@ static int cpuidle_start(void)
 
 static int cpuidle_stop(void)
 {
-	int cpu, state;
+	int cpu;
+	unsigned int state;
 	struct timespec end_time;
 	clock_gettime(CLOCK_REALTIME, &end_time);
 	timediff = timespec_diff_us(start_time, end_time);
@@ -69,7 +71,7 @@ static int cpuidle_stop(void)
 		     state++) {
 			current_count[cpu][state] =
 				cpuidle_state_time(cpu, state);
-			dprint("CPU %d - State: %d - Val: %llu\n",
+			dprint("CPU %d - State: %u - Val: %llu\n",
 			       cpu, state, previous_count[cpu][state]);
 		}
 	}
@@ -140,7 +142,8 @@ void map_power_idle_state_name(char *tmp) { }
 
 static struct cpuidle_monitor *cpuidle_register(void)
 {
-	int num;
+	unsigned int num;
+	int cpu;
 	char *tmp;
 	int this_cpu;
 
@@ -158,7 +161,7 @@ static struct cpuidle_monitor *cpuidle_register(void)
 			continue;
 
 		map_power_idle_state_name(tmp);
-		fix_up_intel_idle_driver_name(tmp, num);
+		fix_up_intel_idle_driver_name(tmp, (int)num);
 		strncpy(cpuidle_cstates[num].name, tmp, CSTATE_NAME_LEN - 1);
 		free(tmp);
 
@@ -169,26 +172,25 @@ static struct cpuidle_monitor *cpuidle_register(void)
 		free(tmp);
 
 		cpuidle_cstates[num].range = RANGE_THREAD;
-		cpuidle_cstates[num].id = num;
+		cpuidle_cstates[num].id = (int)num;
 		cpuidle_cstates[num].get_count_percent =
 			cpuidle_get_count_percent;
 	}
 
 	/* Free this at program termination */
-	previous_count = malloc(sizeof(long long *) * cpu_count);
-	current_count = malloc(sizeof(long long *) * cpu_count);
-	for (num = 0; num < cpu_count; num++) {
-		previous_count[num] = malloc(sizeof(long long) *
+	previous_count = malloc(sizeof(unsigned long long *) * cpu_count);
+	current_count = malloc(sizeof(unsigned long long *) * cpu_count);
+	for (cpu = 0; cpu < cpu_count; cpu++) {
+		previous_count[cpu] = malloc(sizeof(unsigned long long) *
 					cpuidle_sysfs_monitor.hw_states_num);
-		current_count[num] = malloc(sizeof(long long) *
+		current_count[cpu] = malloc(sizeof(unsigned long long) *
 					cpuidle_sysfs_monitor.hw_states_num);
 	}
 
-	cpuidle_sysfs_monitor.name_len = strlen(cpuidle_sysfs_monitor.name);
 	return &cpuidle_sysfs_monitor;
 }
 
-void cpuidle_unregister(void)
+static void cpuidle_unregister(void)
 {
 	int num;
 
@@ -202,6 +204,7 @@ void cpuidle_unregister(void)
 
 struct cpuidle_monitor cpuidle_sysfs_monitor = {
 	.name			= "Idle_Stats",
+	.name_len		= sizeof("Idle_Stats") - 1u,
 	.hw_states		= cpuidle_cstates,
 	.start			= cpuidle_start,
 	.stop			= cpuidle_stop,
