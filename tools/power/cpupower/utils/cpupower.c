@@ -30,7 +30,7 @@ static int cmd_help(int argc, char **argv);
  * Values will be zero/unknown on non X86 archs
  */
 struct cpupower_cpu_info cpupower_cpu_info;
-int run_as_root;
+bool run_as_root;
 int base_cpu;
 /* Affected cpus chosen by -c/--cpu param */
 struct bitmask *cpus_chosen;
@@ -46,19 +46,19 @@ static void print_help(void);
 struct cmd_struct {
 	const char *cmd;
 	int (*main)(int, char **);
-	int needs_root;
+	bool needs_root;
 };
 
 static struct cmd_struct commands[] = {
-	{ "frequency-info",	cmd_freq_info,	0	},
-	{ "frequency-set",	cmd_freq_set,	1	},
-	{ "idle-info",		cmd_idle_info,	0	},
-	{ "idle-set",		cmd_idle_set,	1	},
-	{ "set",		cmd_set,	1	},
-	{ "info",		cmd_info,	0	},
-	{ "monitor",		cmd_monitor,	0	},
-	{ "help",		cmd_help,	0	},
-	/*	{ "bench",	cmd_bench,	1	}, */
+	{ "frequency-info",	cmd_freq_info,	false	},
+	{ "frequency-set",	cmd_freq_set,	true	},
+	{ "idle-info",		cmd_idle_info,	false	},
+	{ "idle-set",		cmd_idle_set,	true	},
+	{ "set",		cmd_set,	true	},
+	{ "info",		cmd_info,	false	},
+	{ "monitor",		cmd_monitor,	false	},
+	{ "help",		cmd_help,	false	},
+	/*	{ "bench",	cmd_bench,	true	}, */
 };
 
 static void print_help(void)

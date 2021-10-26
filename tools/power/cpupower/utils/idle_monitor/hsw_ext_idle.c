@@ -188,7 +188,7 @@ struct cpuidle_monitor intel_hsw_ext_monitor = {
 	.stop			= hsw_ext_stop,
 	.do_register		= hsw_ext_register,
 	.unregister		= hsw_ext_unregister,
-	.flags.needs_root	= 1,
+	.flags.needs_root	= true,
 	.overflow_s		= 922000000 /* 922337203 seconds TSC overflow
 					       at 20GHz */
 };

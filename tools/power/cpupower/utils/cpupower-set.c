@@ -22,12 +22,6 @@ static struct option set_opts[] = {
 	{ },
 };
 
-static void print_wrong_arg_exit(void)
-{
-	printf(_("invalid or unknown argument\n"));
-	exit(EXIT_FAILURE);
-}
-
 int cmd_set(int argc, char **argv)
 {
 	extern char *optarg;

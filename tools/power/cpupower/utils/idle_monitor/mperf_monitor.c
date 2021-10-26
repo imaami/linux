@@ -533,7 +533,7 @@ struct cpuidle_monitor mperf_monitor = {
 	.stop			= mperf_stop_rdpru_cpusched,
 	.do_register		= mperf_register,
 	.unregister		= mperf_unregister,
-	.flags.needs_root	= 1,
+	.flags.needs_root	= true,
 	.overflow_s		= 922000000 /* 922337203 seconds TSC overflow
 					       at 20GHz */
 };

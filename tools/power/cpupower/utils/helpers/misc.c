@@ -206,3 +206,9 @@ void print_speed(unsigned long speed, int no_rounding)
 
 	return;
 }
+
+noreturn void print_wrong_arg_exit(void)
+{
+	printf(_("invalid or unknown argument\n"));
+	exit(EXIT_FAILURE);
+}
