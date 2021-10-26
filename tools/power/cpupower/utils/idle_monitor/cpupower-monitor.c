@@ -64,18 +64,20 @@ long long timespec_diff_us(struct timespec start, struct timespec end)
  */
 static void fill_string_with_spaces(char *s, size_t len, size_t n)
 {
-	char *temp;
+	fprintf(stderr, "%s(\"%s\", %zu, %zu)\n%*s", __func__,
+	                s,  len, n, (int)sizeof(__func__), "=> ");
 
-	if (len >= n)
-		return;
+	if (len < n) {
+		char *temp = malloc(n + 1u);
+		for (; len < n; len++)
+			s[len] = ' ';
+		s[len] = '\0';
+		snprintf(temp, n+1u, " %s", s);
+		strcpy(s, temp);
+		free(temp);
+	}
 
-	temp = malloc(n + 1u);
-	for (; len < n; len++)
-		s[len] = ' ';
-	s[len] = '\0';
-	snprintf(temp, n+1u, " %s", s);
-	strcpy(s, temp);
-	free(temp);
+	fprintf(stderr, "\"%s\"\n", s);
 }
 
 #define MAX_COL_WIDTH 6
@@ -379,6 +381,7 @@ int cmd_monitor(int argc, char **argv)
 	struct cpuidle_monitor *test_mon;
 	int cpu, topo_depth;
 	struct timespec ival_ts;
+	char cursor[8];
 
 	cmdline(argc, argv);
 	cpu_count = get_cpu_topology(&cpu_top);
@@ -429,6 +432,11 @@ int cmd_monitor(int argc, char **argv)
 	if (mode == show)
 		parse_monitor_param(show_monitors_param);
 
+	cpu = snprintf(cursor, sizeof(cursor), "\033[%dF", cpu_count);
+	if (cpu < 0 || cpu >= (int)sizeof(cursor))
+		exit(EXIT_FAILURE);
+	cpu = 0;
+
 	topo_depth = (cpu_top.pkgs > 1) ? 3 : 1;
 
 	dprint("Packages: %d - Cores: %d - CPUs: %d\n",
@@ -442,16 +450,19 @@ int cmd_monitor(int argc, char **argv)
 	if (should_fork) {
 		fork_it(argv + optind);
 	} else {
+		/* ToDo: Topology parsing needs fixing first to do
+		   this more generically */
+		print_header(topo_depth);
+
 		ival_ts.tv_sec = interval / 1000;
 		ival_ts.tv_nsec = (interval % 1000) * 1000000;
+
 	measure:
 		do_interval_measure(&ival_ts);
-		fputs("\033[H", stdout);
+		if (cpu > 0)
+			fputs(cursor, stdout);
 	}
 
-	/* ToDo: Topology parsing needs fixing first to do
-	   this more generically */
-	print_header(topo_depth);
 	for (cpu = 0; cpu < cpu_count; cpu++) {
 		print_results(topo_depth, cpu);
 	}
