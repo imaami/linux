@@ -5,6 +5,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -151,7 +152,18 @@ static int __compare(const void *t1, const void *t2)
  */
 int get_cpu_topology(struct cpupower_topology *cpu_top)
 {
-	int cpu, last_pkg, cpus = sysconf(_SC_NPROCESSORS_CONF);
+	int last_pkg;
+	unsigned int cpu;
+	size_t cpus;
+	union {
+		long cpus;
+		int pkg;
+	} tmp;
+
+	tmp.cpus = sysconf(_SC_NPROCESSORS_CONF);
+	if (tmp.cpus < 1)
+		return -ENOENT;
+	cpus = (size_t)tmp.cpus;
 
 	cpu_top->core_info = malloc(sizeof(struct cpuid_core_info) * cpus);
 	if (cpu_top->core_info == NULL)
@@ -186,14 +198,13 @@ int get_cpu_topology(struct cpupower_topology *cpu_top)
 	   done by pkg value. */
 	last_pkg = cpu_top->core_info[0].pkg;
 	for(cpu = 1; cpu < cpus; cpu++) {
-		if (cpu_top->core_info[cpu].pkg != last_pkg &&
-				cpu_top->core_info[cpu].pkg != -1) {
-
-			last_pkg = cpu_top->core_info[cpu].pkg;
+		tmp.pkg = cpu_top->core_info[cpu].pkg;
+		if (tmp.pkg != last_pkg && tmp.pkg != -1) {
+			last_pkg = tmp.pkg;
 			cpu_top->pkgs++;
 		}
 	}
-	if (!(cpu_top->core_info[0].pkg == -1))
+	if (cpu_top->core_info[0].pkg != -1)
 		cpu_top->pkgs++;
 
 	/* Intel's cores count is not consecutively numbered, there may
@@ -203,7 +214,7 @@ int get_cpu_topology(struct cpupower_topology *cpu_top)
 		if (cpu_top->core_info[cpu].core == 0)
 	cpu_top->cores++;
 	*/
-	return cpus;
+	return (int)cpus;
 }
 
 void cpu_topology_release(struct cpupower_topology cpu_top)

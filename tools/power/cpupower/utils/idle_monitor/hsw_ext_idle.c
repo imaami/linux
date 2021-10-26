@@ -165,11 +165,11 @@ static struct cpuidle_monitor *hsw_ext_register(void)
 		current_count[num]  = calloc(cpu_count,
 					sizeof(unsigned long long));
 	}
-	intel_hsw_ext_monitor.name_len = strlen(intel_hsw_ext_monitor.name);
+
 	return &intel_hsw_ext_monitor;
 }
 
-void hsw_ext_unregister(void)
+static void hsw_ext_unregister(void)
 {
 	int num;
 	free(is_valid);
@@ -181,6 +181,7 @@ void hsw_ext_unregister(void)
 
 struct cpuidle_monitor intel_hsw_ext_monitor = {
 	.name			= "HaswellExtended",
+	.name_len		= sizeof("HaswellExtended") - 1u,
 	.hw_states		= hsw_ext_cstates,
 	.hw_states_num		= HSW_EXT_CSTATE_COUNT,
 	.start			= hsw_ext_start,

@@ -52,8 +52,8 @@ typedef struct cstate {
 struct cpuidle_monitor {
 	/* Name must not contain whitespaces */
 	char name[MONITOR_NAME_LEN];
-	int name_len;
-	int hw_states_num;
+	unsigned int name_len;
+	unsigned int hw_states_num;
 	cstate_t *hw_states;
 	int (*start) (void);
 	int (*stop) (void);
@@ -69,11 +69,11 @@ struct cpuidle_monitor {
 extern long long timespec_diff_us(struct timespec start, struct timespec end);
 
 #define print_overflow_err(mes, ov)						\
-{										\
+do {										\
 	fprintf(stderr, gettext("Measure took %u seconds, but registers could "	\
 				"overflow at %u seconds, results "		\
 				"could be inaccurate\n"), mes, ov);		\
-}
+} while(0)
 
 
 /* Taken over from x86info project sources  -> return 0 on success */

@@ -516,7 +516,6 @@ static struct cpuidle_monitor *mperf_register(void)
 		mperf_monitor.stop = mperf_stop_msr;
 	}
 */
-	mperf_monitor.name_len = strlen(mperf_monitor.name);
 	return &mperf_monitor;
 }
 
@@ -527,6 +526,7 @@ static void mperf_unregister(void)
 
 struct cpuidle_monitor mperf_monitor = {
 	.name			= "Mperf",
+	.name_len		= sizeof("Mperf") - 1u,
 	.hw_states_num		= MPERF_CSTATE_COUNT,
 	.hw_states		= mperf_cstates,
 	.start			= mperf_start_rdpru_cpusched,
