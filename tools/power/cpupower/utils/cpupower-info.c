@@ -17,15 +17,9 @@
 #include "builtin.h"
 
 static struct option set_opts[] = {
-     {"perf-bias", optional_argument, NULL, 'b'},
-     { },
+	{"perf-bias", optional_argument, NULL, 'b'},
+	{ },
 };
-
-static void print_wrong_arg_exit(void)
-{
-	printf(_("invalid or unknown argument\n"));
-	exit(EXIT_FAILURE);
-}
 
 int cmd_info(int argc, char **argv)
 {

@@ -270,7 +270,7 @@ static int amd_fam14h_stop(void)
 static __always_inline bool is_nbp1_capable(void)
 {
 	uint32_t val = pci_read_long(amd_fam14h_pci_dev, PCI_NBP1_CAP_OFFSET);
-	return !!(val & (1u << 31));
+	return !!(val & (1u << 31u));
 }
 
 static struct cpuidle_monitor *amd_fam14h_register(void)
@@ -324,7 +324,7 @@ struct cpuidle_monitor amd_fam14h_monitor = {
 	.stop			= amd_fam14h_stop,
 	.do_register		= amd_fam14h_register,
 	.unregister		= amd_fam14h_unregister,
-	.flags.needs_root	= 1,
+	.flags.needs_root	= true,
 	.overflow_s		= OVERFLOW_MS / 1000,
 };
 #endif /* #if defined(__i386__) || defined(__x86_64__) */
