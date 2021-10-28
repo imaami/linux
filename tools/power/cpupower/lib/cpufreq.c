@@ -85,29 +85,28 @@ static const char *cpufreq_value_files[MAX_CPUFREQ_VALUE_READ_FILES] = {
 
 unsigned long cpufreq_get_sysfs_value_from_table(unsigned int cpu,
 						 const char **table,
-						 unsigned index,
-						 unsigned size)
+						 unsigned int index,
+						 unsigned int size)
 {
-	unsigned long value;
-	unsigned int len;
 	char linebuf[MAX_LINE_LEN];
-	char *endp;
+	unsigned long ret;
+	char *endp = NULL;
 
-	if (!table && !table[index] && index >= size)
+	if ((index >= size) || !table || !table[index])
 		return 0;
 
-	len = sysfs_cpufreq_read_file(cpu, table[index], linebuf,
+	ret = sysfs_cpufreq_read_file(cpu, table[index], linebuf,
 				      sizeof(linebuf));
 
-	if (len == 0)
+	if (ret == 0)
 		return 0;
 
-	value = strtoul(linebuf, &endp, 0);
+	ret = strtoul(linebuf, &endp, 0);
 
 	if (endp == linebuf || errno == ERANGE)
 		return 0;
 
-	return value;
+	return ret;
 }
 
 static unsigned long sysfs_cpufreq_get_one_value(unsigned int cpu,
