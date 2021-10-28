@@ -64,8 +64,8 @@ long long timespec_diff_us(struct timespec start, struct timespec end)
  */
 static void fill_string_with_spaces(char *s, size_t len, size_t n)
 {
-	fprintf(stderr, "%s(\"%s\", %zu, %zu)\n%*s", __func__,
-	                s,  len, n, (int)sizeof(__func__), "=> ");
+//	fprintf(stderr, "%s(\"%s\", %zu, %zu)\n%*s", __func__,
+//	                s,  len, n, (int)sizeof(__func__), "=> ");
 
 	if (len < n) {
 		char *temp = malloc(n + 1u);
@@ -77,7 +77,7 @@ static void fill_string_with_spaces(char *s, size_t len, size_t n)
 		free(temp);
 	}
 
-	fprintf(stderr, "\"%s\"\n", s);
+//	fprintf(stderr, "\"%s\"\n", s);
 }
 
 #define MAX_COL_WIDTH 6
@@ -94,35 +94,34 @@ static void print_header(int topology_depth)
 		need_len = monitors[mon]->hw_states_num * (MAX_COL_WIDTH + 1u)
 			- 1u;
 		if (mon != 0)
-			printf("||");
+			fputs("||", stdout);
 		sprintf(buf, "%s", monitors[mon]->name);
 		fill_string_with_spaces(buf, monitors[mon]->name_len, need_len);
-		printf("%s", buf);
+		fputs(buf, stdout);
 	}
-	printf("\n");
+	putchar('\n');
 
 	if (topology_depth > 2)
-		printf(" PKG|");
+		fputs(" PKG|", stdout);
 	if (topology_depth > 1)
-		printf("CORE|");
+		fputs("CORE|", stdout);
 	if (topology_depth > 0)
-		printf(" CPU|");
+		fputs(" CPU|", stdout);
 
 	for (mon = 0; mon < avail_monitors; mon++) {
 		if (mon != 0)
-			printf("||");
+			fputs("||", stdout);
 		for (state = 0; state < monitors[mon]->hw_states_num; state++) {
 			if (state != 0)
-				printf("|");
+				putchar('|');
 			s = monitors[mon]->hw_states[state];
 			sprintf(buf, "%s", s.name);
 			fill_string_with_spaces(buf, strlen(s.name),
 						MAX_COL_WIDTH);
-			printf("%s", buf);
+			fputs(buf, stdout);
 		}
-		printf(" ");
 	}
-	printf("\n");
+	putchar('\n');
 }
 
 static void print_results(int topology_depth, int cpu)
@@ -149,11 +148,11 @@ static void print_results(int topology_depth, int cpu)
 
 	for (mon = 0; mon < avail_monitors; mon++) {
 		if (mon != 0)
-			printf("||");
+			fputs("||", stdout);
 
 		for (state = 0; state < monitors[mon]->hw_states_num; state++) {
 			if (state != 0)
-				printf("|");
+				putchar('|');
 
 			s = monitors[mon]->hw_states[state];
 
@@ -161,7 +160,7 @@ static void print_results(int topology_depth, int cpu)
 				ret = s.get_count_percent(s.id, &percent,
 						  cpu_top.core_info[cpu].cpu);
 				if (ret)
-					printf("******");
+					fputs("******", stdout);
 				else if (percent >= 100.0)
 					printf("%6.1f", percent);
 				else
@@ -170,7 +169,7 @@ static void print_results(int topology_depth, int cpu)
 				ret = s.get_count(s.id, &result,
 						  cpu_top.core_info[cpu].cpu);
 				if (ret)
-					printf("******");
+					fputs("******", stdout);
 				else
 					printf("%6llu", result);
 			} else {
@@ -190,11 +189,11 @@ static void print_results(int topology_depth, int cpu)
 	 */
 	if (!cpu_top.core_info[cpu].is_online &&
 	    cpu_top.core_info[cpu].pkg != -1) {
-		printf(_(" *is offline\n"));
+		puts(_(" *is offline"));
 		return;
 	}
 
-	printf("\n");
+	putchar('\n');
 }
 
 
@@ -432,12 +431,10 @@ int cmd_monitor(int argc, char **argv)
 	if (mode == show)
 		parse_monitor_param(show_monitors_param);
 
-	cpu = snprintf(cursor, sizeof(cursor), "\033[%dF", cpu_count);
-	if (cpu < 0 || cpu >= (int)sizeof(cursor))
-		exit(EXIT_FAILURE);
+	num = 0;
 	cpu = 0;
-
 	topo_depth = (cpu_top.pkgs > 1) ? 3 : 1;
+	cursor[0] = '\0';
 
 	dprint("Packages: %d - Cores: %d - CPUs: %d\n",
 	       cpu_top.pkgs, cpu_top.cores, cpu_count);
@@ -459,13 +456,22 @@ int cmd_monitor(int argc, char **argv)
 
 	measure:
 		do_interval_measure(&ival_ts);
-		if (cpu > 0)
+
+		if (cpu > 0) {
+			if (!cursor[0]) {
+				cpu = snprintf(cursor, sizeof(cursor),
+					       "\033[%dF", cpu + (int)num);
+				if (cpu < 0 || cpu >= (int)sizeof(cursor))
+					exit(EXIT_FAILURE);
+			}
 			fputs(cursor, stdout);
+		}
 	}
 
 	for (cpu = 0; cpu < cpu_count; cpu++) {
 		print_results(topo_depth, cpu);
 	}
+	mperf_print_footer(&num);
 
 	if (!should_fork)
 		goto measure;

@@ -212,8 +212,8 @@ int cpufreq_set_frequency(unsigned int cpu,
 
 unsigned long cpufreq_get_sysfs_value_from_table(unsigned int cpu,
 						 const char **table,
-						 unsigned index,
-						 unsigned size);
+						 unsigned int index,
+						 unsigned int size);
 
 #ifdef __cplusplus
 }

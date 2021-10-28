@@ -93,4 +93,6 @@ static inline int bind_cpu(int cpu)
 	return 1;
 }
 
+extern void mperf_print_footer(unsigned int *line_count);
+
 #endif /* __CPUIDLE_INFO_HW__ */
