@@ -5,12 +5,13 @@
 
 #if defined(__i386__) || defined(__x86_64__)
 
+#include <limits.h>
+#include <sched.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 #include <time.h>
 
 #include <cpufreq.h>
@@ -28,6 +29,13 @@
 #define MSR_TSC	0x10
 
 #define MSR_AMD_HWCR 0xc0010015
+
+#define U64_BIT (CHAR_BIT * sizeof(uint64_t))
+#define U64_CPUMASK_LEN(n) (((uint64_t)(n) + U64_BIT - UINT64_C(1)) / U64_BIT)
+#define U64_CPUMASK(ncpus) struct { uint64_t __bits[U64_CPUMASK_LEN(ncpus)]; }
+
+#define MAX_CPUS 32
+typedef U64_CPUMASK(MAX_CPUS) cpu_af_t;
 
 enum mperf_id { C0 = 0, Cx, AVG_FREQ, MPERF_CSTATE_COUNT };
 
@@ -77,6 +85,9 @@ static float max_frequency;
 static unsigned long long tsc_at_measure_start;
 static unsigned long long tsc_at_measure_end;
 static unsigned long long tsc_diff;
+static uint64_t acc_freq;
+
+static double avg_freq[15];
 
 struct aperf_mperf {
 	unsigned long long aperf;
@@ -86,9 +97,11 @@ struct aperf_mperf {
 struct measurement {
 	struct aperf_mperf previous;
 	struct aperf_mperf current;
+	cpu_af_t cpu_affinity;
 	bool is_valid;
 };
 
+static cpu_af_t cpu_affinity;
 static struct measurement *stats;
 
 /*
@@ -150,6 +163,13 @@ static __always_inline uint64_t get_cpu_mperf_sample(unsigned int cpu)
 	return stats[cpu].current.mperf - stats[cpu].previous.mperf;
 }
 
+static __always_inline uint64_t get_cpu_freq_sample(unsigned int cpu)
+{
+	return (uint64_t)(.5f + max_frequency *
+			  ((float)(get_cpu_aperf_sample(cpu)) /
+			   (float)(get_cpu_mperf_sample(cpu))));
+}
+
 static int mperf_get_count_percent(unsigned int id, double *percent,
 				   unsigned int cpu)
 {
@@ -180,11 +200,7 @@ static int mperf_get_count_freq(unsigned int id, unsigned long long *count,
 {
 	if (!stats[cpu].is_valid)
 		return -1;
-
-	*count = (unsigned long long) (.5f + max_frequency *
-					((float)(get_cpu_aperf_sample(cpu)) /
-					 (float)(get_cpu_mperf_sample(cpu))));
-
+	*count = get_cpu_freq_sample(cpu);
 	return 0;
 }
 
@@ -196,7 +212,8 @@ static __always_inline void mperf_init_stats_rdpru(int cpu)
 
 static __always_inline void mperf_init_stats_rdpru_cpusched(int cpu)
 {
-	if (bind_cpu(cpu)) {
+	if (sched_setaffinity(0, sizeof(cpu_af_t),
+			      (cpu_set_t *)&stats[cpu].cpu_affinity)) {
 		stats[cpu].is_valid = false;
 		return;
 	}
@@ -214,7 +231,8 @@ static __always_inline void mperf_measure_stats_rdpru_cpusched(int cpu)
 	if (!stats[cpu].is_valid)
 		return;
 
-	if (bind_cpu(cpu)) {
+	if (sched_setaffinity(0, sizeof(cpu_af_t),
+			      (cpu_set_t *)&stats[cpu].cpu_affinity)) {
 		stats[cpu].is_valid = false;
 		return;
 	}
@@ -288,13 +306,16 @@ static int mperf_start_rdpru_cpusched(void)
 	//clock_gettime(CLOCK_MONOTONIC_RAW, &ts1);
 	mperf_rdtsc(&tsc1);
 
-	for (tmp.cpu = 0; tmp.cpu < 16; ++tmp.cpu) {
+	for (; tmp.cpu < 16; ++tmp.cpu) {
 		mperf_init_stats_rdpru_cpusched(tmp.cpu);
 		mperf_init_stats_rdpru_cpusched(tmp.cpu + 16);
 	}
 
 	mperf_rdtsc(&tsc2);
 	//clock_gettime(CLOCK_MONOTONIC_RAW, &ts2);
+
+	/* restore original affinity */
+	sched_setaffinity(0, sizeof(cpu_af_t), (cpu_set_t *)&cpu_affinity);
 
 	tsc2 -= tsc1;
 	tsc1 += tsc2 >> 1u;
@@ -313,8 +334,10 @@ static int mperf_start_rdpru_cpusched(void)
 
 static int mperf_stop_rdpru_cpusched(void)
 {
+	static unsigned int run_count = 0u;
 	union {
 		int cpu;
+		double avg;
 	//	unsigned long long nsec;
 	} tmp = {
 		.cpu = 0
@@ -329,13 +352,16 @@ static int mperf_stop_rdpru_cpusched(void)
 	//clock_gettime(CLOCK_MONOTONIC_RAW, &ts1);
 	mperf_rdtsc(&tsc1);
 
-	for (tmp.cpu = 0; tmp.cpu < 16; ++tmp.cpu) {
+	for (; tmp.cpu < 16; ++tmp.cpu) {
 		mperf_measure_stats_rdpru_cpusched(tmp.cpu);
 		mperf_measure_stats_rdpru_cpusched(tmp.cpu + 16);
 	}
 
 	mperf_rdtsc(&tsc2);
 	//clock_gettime(CLOCK_MONOTONIC_RAW, &ts2);
+
+	/* restore original affinity */
+	sched_setaffinity(0, sizeof(cpu_af_t),(cpu_set_t *)&cpu_affinity);
 
 	tsc2 -= tsc1;
 	tsc1 += tsc2 >> 1u;
@@ -354,14 +380,74 @@ static int mperf_stop_rdpru_cpusched(void)
 	if (max_freq_mode == MAX_FREQ_TSC_REF)
 		max_frequency = (float)tsc_diff / (float)time_diff;
 */
+
+	acc_freq = 0u;
+	for (tmp.cpu = 0; tmp.cpu < cpu_count; ++tmp.cpu) {
+		if (stats[tmp.cpu].is_valid)
+			acc_freq += get_cpu_freq_sample(tmp.cpu);
+	}
+
+	tmp.avg = (double)acc_freq / (double)cpu_count;
+	unsigned int i = 0;
+
+	avg_freq[0] = tmp.avg;
+
+	if (!run_count++) {
+		while (++i < sizeof(avg_freq) / sizeof(*avg_freq))
+			avg_freq[i] = tmp.avg;
+		return 0;
+	}
+
+	while (++i < sizeof(avg_freq) / sizeof(*avg_freq)) {
+		tmp.avg += avg_freq[i];
+		tmp.avg *= .5;
+		avg_freq[i] = tmp.avg;
+	}
+
 	return 0;
 }
 
 void mperf_print_footer(unsigned int *line_count)
 {
-	fprintf(stderr, "tsc_diff  : %llu\n", tsc_diff);
+	fprintf(stderr,
+		"                  +------\n"
+/*
+		"%11.1f %6.1f %6.1f\n"
+		"%11.1f %6.1f %6.1f\n"
+		"%11.1f %6.1f %6.1f\n"
+		"%11.1f %6.1f %6.1f\n"
+*/
+		"%11.1f %6.1f %6.1f\n",
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 1u],
+/*
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 2u],
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 3u],
+
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 4u],
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 5u],
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 6u],
+
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 7u],
+*/
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 8u],
+/*
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 9u],
+
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 10u],
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 11u],
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 12u],
+
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 13u],
+		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 14u],
+*/
+		avg_freq[0]);
+
+	//(acc_freq + (n >> 1u)) / n);
 	if (line_count)
-		*line_count = 1u;
+		*line_count = 2u;
+	//fprintf(stderr, "tsc_diff  : %llu\n", tsc_diff);
+	//if (line_count)
+	//	*line_count = 1u;
 }
 
 /*
@@ -552,17 +638,31 @@ use_sysfs:
 struct cpuidle_monitor mperf_monitor;
 static struct cpuidle_monitor *mperf_register(void)
 {
+	int i = 0;
+
 	if (!(cpupower_cpu_info.caps & CPUPOWER_CAP_APERF))
 		return NULL;
 
 	if (init_maxfreq_mode())
 		return NULL;
 
+	/* Save original CPU affinity mask */
+	if (sched_getaffinity(getpid(), sizeof(cpu_af_t),
+			      (cpu_set_t *)&cpu_affinity)) {
+		perror(__func__);
+		return NULL;
+	}
+
 	/* Free this at program termination */
 	stats = calloc(cpu_count, sizeof(*stats));
 
 	if (!stats)
 		return NULL;
+
+	for (; i < cpu_count; ++i) {
+		CPU_SET_S(i, sizeof(cpu_af_t),
+			  (cpu_set_t *)&stats[i].cpu_affinity);
+	}
 
 	mperf_monitor.flags.per_cpu_schedule = (cpupower_cpu_info.vendor ==
 						X86_VENDOR_AMD);
