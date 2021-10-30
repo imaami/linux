@@ -87,41 +87,41 @@ static void print_header(int topology_depth)
 	cstate_t s;
 	char buf[128] = "";
 
-	//fill_string_with_spaces(buf, 0, topology_depth * 5 - 1);
-	//printf("%s|", buf);
+	fill_string_with_spaces(buf, 0, topology_depth * 5 - 1);
+	printf("%s|", buf);
 
 	for (mon = 0; mon < avail_monitors; mon++) {
 		need_len = monitors[mon]->hw_states_num * (MAX_COL_WIDTH + 1u)
 			- 1u;
 		if (mon != 0)
-			{} //fputs("||", stdout);
-		//sprintf(buf, "%s", monitors[mon]->name);
-		//fill_string_with_spaces(buf, monitors[mon]->name_len, need_len);
-		//fputs(buf, stdout);
+			fputs("||", stdout);
+		sprintf(buf, "%s", monitors[mon]->name);
+		fill_string_with_spaces(buf, monitors[mon]->name_len, need_len);
+		fputs(buf, stdout);
 	}
-	//putchar('\n');
+	putchar('\n');
 
 	if (topology_depth > 2)
-		{} //fputs(" PKG|", stdout);
+		fputs(" PKG|", stdout);
 	if (topology_depth > 1)
-		{} //fputs("CORE|", stdout);
+		fputs("CORE|", stdout);
 	if (topology_depth > 0)
-		{} //fputs(" CPU|", stdout);
+		fputs(" CPU|", stdout);
 
 	for (mon = 0; mon < avail_monitors; mon++) {
 		if (mon != 0)
-			{} //fputs("||", stdout);
+			fputs("||", stdout);
 		for (state = 0; state < monitors[mon]->hw_states_num; state++) {
 			if (state != 0)
-				{} //putchar('|');
+				putchar('|');
 			s = monitors[mon]->hw_states[state];
-			//sprintf(buf, "%s", s.name);
-			//fill_string_with_spaces(buf, strlen(s.name),
-			//			MAX_COL_WIDTH);
-			//fputs(buf, stdout);
+			sprintf(buf, "%s", s.name);
+			fill_string_with_spaces(buf, strlen(s.name),
+						MAX_COL_WIDTH);
+			fputs(buf, stdout);
 		}
 	}
-	//putchar('\n');
+	putchar('\n');
 }
 
 static void print_results(int topology_depth, int cpu)
@@ -140,19 +140,19 @@ static void print_results(int topology_depth, int cpu)
 		return;
 
 	if (topology_depth > 2)
-		{} //printf("%4d|", cpu_top.core_info[cpu].pkg);
+		printf("%4d|", cpu_top.core_info[cpu].pkg);
 	if (topology_depth > 1)
-		{} //printf("%4d|", cpu_top.core_info[cpu].core);
+		printf("%4d|", cpu_top.core_info[cpu].core);
 	if (topology_depth > 0)
-		{} //printf("%4d|", cpu_top.core_info[cpu].cpu);
+		printf("%4d|", cpu_top.core_info[cpu].cpu);
 
 	for (mon = 0; mon < avail_monitors; mon++) {
 		if (mon != 0)
-			{} //fputs("||", stdout);
+			fputs("||", stdout);
 
 		for (state = 0; state < monitors[mon]->hw_states_num; state++) {
 			if (state != 0)
-				{} //putchar('|');
+				putchar('|');
 
 			s = monitors[mon]->hw_states[state];
 
@@ -160,22 +160,22 @@ static void print_results(int topology_depth, int cpu)
 				ret = s.get_count_percent(s.id, &percent,
 						  cpu_top.core_info[cpu].cpu);
 				if (ret)
-					{} //fputs("******", stdout);
+					fputs("******", stdout);
 				else if (percent >= 100.0)
-					{} //printf("%6.1f", percent);
+					printf("%6.1f", percent);
 				else
-					{} //printf("%6.2f", percent);
+					printf("%6.2f", percent);
 			} else if (s.get_count) {
 				ret = s.get_count(s.id, &result,
 						  cpu_top.core_info[cpu].cpu);
 				if (ret)
-					{} //fputs("******", stdout);
+					fputs("******", stdout);
 				else
-					{} //printf("%6llu", result);
+					printf("%6llu", result);
 			} else {
-				//printf(_("Monitor %s, Counter %s has no count "
-				//	 "function. Implementation error\n"),
-				//       monitors[mon]->name, s.name);
+				printf(_("Monitor %s, Counter %s has no count "
+					 "function. Implementation error\n"),
+				       monitors[mon]->name, s.name);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -189,11 +189,11 @@ static void print_results(int topology_depth, int cpu)
 	 */
 	if (!cpu_top.core_info[cpu].is_online &&
 	    cpu_top.core_info[cpu].pkg != -1) {
-		//puts(_(" *is offline"));
+		puts(_(" *is offline"));
 		return;
 	}
 
-	//putchar('\n');
+	putchar('\n');
 }
 
 
@@ -304,7 +304,7 @@ static int fork_it(char **argv)
 	timediff = timespec_diff_us(start, end);
 	if (WIFEXITED(status))
 		printf(_("%s took %.5f seconds and exited with status %d\n"),
-			argv[0], timediff / (1000.0 * 1000),
+			argv[0], (double)timediff / (1000.0 * 1000),
 			WEXITSTATUS(status));
 	return 0;
 }
@@ -375,6 +375,7 @@ static void cmdline(int argc, char *argv[])
 
 int cmd_monitor(int argc, char **argv)
 {
+	size_t rounds = 0;
 	bool should_fork;
 	unsigned int num;
 	struct cpuidle_monitor *test_mon;
@@ -449,13 +450,14 @@ int cmd_monitor(int argc, char **argv)
 	} else {
 		/* ToDo: Topology parsing needs fixing first to do
 		   this more generically */
-		//print_header(topo_depth);
+		print_header(topo_depth);
 
 		ival_ts.tv_sec = interval / 1000;
 		ival_ts.tv_nsec = (interval % 1000) * 1000000;
 
 	measure:
 		do_interval_measure(&ival_ts);
+		++rounds;
 
 		if (cpu > 0) {
 			if (!cursor[0]) {
@@ -464,8 +466,9 @@ int cmd_monitor(int argc, char **argv)
 				if (cpu < 0 || cpu >= (int)sizeof(cursor))
 					exit(EXIT_FAILURE);
 			}
-			//fputs(cursor, stdout);
+			fputs(cursor, stdout);
 		}
+
 	}
 
 	for (cpu = 0; cpu < cpu_count; cpu++) {
@@ -473,7 +476,7 @@ int cmd_monitor(int argc, char **argv)
 	}
 	num = mperf_print_footer();
 
-	if (!should_fork)
+	if (!should_fork && rounds < (1024u << 7u))
 		goto measure;
 
 	for (num = 0; num < avail_monitors; num++)
