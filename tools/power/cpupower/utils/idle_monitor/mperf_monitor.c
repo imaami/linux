@@ -461,6 +461,7 @@ static int mperf_stop_rdpru_cpusched(void)
 	return 0;
 }
 
+#ifndef BENCHMARK
 unsigned int mperf_print_footer(void)
 {
 	fprintf(stderr,
@@ -471,6 +472,7 @@ unsigned int mperf_print_footer(void)
 		avg_freq[0]);
 	return 2u;
 }
+#endif
 
 /*
 static int mperf_start_rdpru(void)
