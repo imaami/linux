@@ -12,6 +12,9 @@
 
 #include "idle_monitor/idle_monitors.h"
 
+//#define BENCHMARK
+//#define NAIVE_CPU_ORDER
+
 #define MONITORS_MAX 20
 #define MONITOR_NAME_LEN 20
 
@@ -93,6 +96,8 @@ static inline int bind_cpu(int cpu)
 	return 1;
 }
 
+#ifndef BENCHMARK
 extern unsigned int mperf_print_footer(void);
+#endif
 
 #endif /* __CPUIDLE_INFO_HW__ */

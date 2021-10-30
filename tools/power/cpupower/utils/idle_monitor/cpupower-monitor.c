@@ -38,7 +38,7 @@ static char *progname;
 
 enum operation_mode_e { list = 1, show, show_all };
 static int mode;
-static int interval = 1;
+static int interval = 1000;
 static char *show_monitors_param;
 static struct cpupower_topology cpu_top;
 static unsigned int wake_cpus;
@@ -59,6 +59,7 @@ long long timespec_diff_us(struct timespec start, struct timespec end)
 	return (temp.tv_sec * 1000000) + (temp.tv_nsec / 1000);
 }
 
+#ifndef BENCHMARK
 /*s is filled with left and right spaces
  *to make its length atleast n+1
  */
@@ -195,7 +196,7 @@ static void print_results(int topology_depth, int cpu)
 
 	putchar('\n');
 }
-
+#endif
 
 /* param: string passed by -m param (The list of monitors to show)
  *
@@ -309,23 +310,29 @@ static int fork_it(char **argv)
 	return 0;
 }
 
+#ifndef BENCHMARK
 static int do_interval_measure(const struct timespec *i)
+#else
+static int do_interval_measure(void)
+#endif
 {
-	unsigned int num;
-	int cpu;
+	unsigned int num = 0;
+	int cpu = 0;
 
 	if (wake_cpus)
-		for (cpu = 0; cpu < cpu_count; cpu++)
+		for (; cpu < cpu_count; cpu++)
 			bind_cpu(cpu);
 
-	for (num = 0; num < avail_monitors; num++) {
+	for (; num < avail_monitors; num++) {
 		dprint("HW C-state residency monitor: %s - States: %u\n",
 		       monitors[num]->name, monitors[num]->hw_states_num);
 		monitors[num]->start();
 	}
 
+#ifndef BENCHMARK
 	if (nanosleep(i, NULL))
 		return -1;
+#endif
 
 	if (wake_cpus)
 		for (cpu = 0; cpu < cpu_count; cpu++)
@@ -333,7 +340,6 @@ static int do_interval_measure(const struct timespec *i)
 
 	for (num = 0; num < avail_monitors; num++)
 		monitors[num]->stop();
-
 
 	return 0;
 }
@@ -375,13 +381,19 @@ static void cmdline(int argc, char *argv[])
 
 int cmd_monitor(int argc, char **argv)
 {
-	size_t rounds = 0;
-	bool should_fork;
-	unsigned int num;
-	struct cpuidle_monitor *test_mon;
-	int cpu, topo_depth;
+#ifdef BENCHMARK
+	unsigned int round = 0;
+	unsigned int total_rounds = 0;
+#endif
+	bool should_fork = false;
+	unsigned int num = 0;
+	struct cpuidle_monitor *test_mon = NULL;
+#ifndef BENCHMARK
+	int cpu;
+	int topo_depth;
 	struct timespec ival_ts;
 	char cursor[8];
+#endif
 
 	cmdline(argc, argv);
 	cpu_count = get_cpu_topology(&cpu_top);
@@ -432,10 +444,12 @@ int cmd_monitor(int argc, char **argv)
 	if (mode == show)
 		parse_monitor_param(show_monitors_param);
 
+#ifndef BENCHMARK
 	num = 0;
 	cpu = 0;
 	topo_depth = (cpu_top.pkgs > 1) ? 3 : 1;
 	cursor[0] = '\0';
+#endif
 
 	dprint("Packages: %d - Cores: %d - CPUs: %d\n",
 	       cpu_top.pkgs, cpu_top.cores, cpu_count);
@@ -450,14 +464,19 @@ int cmd_monitor(int argc, char **argv)
 	} else {
 		/* ToDo: Topology parsing needs fixing first to do
 		   this more generically */
+#ifndef BENCHMARK
 		print_header(topo_depth);
 
 		ival_ts.tv_sec = interval / 1000;
 		ival_ts.tv_nsec = (interval % 1000) * 1000000;
+#else
+		if (interval > 0)
+			total_rounds = (unsigned int)interval;
+#endif
 
 	measure:
+#ifndef BENCHMARK
 		do_interval_measure(&ival_ts);
-		++rounds;
 
 		if (cpu > 0) {
 			if (!cursor[0]) {
@@ -468,16 +487,24 @@ int cmd_monitor(int argc, char **argv)
 			}
 			fputs(cursor, stdout);
 		}
-
+#else
+		do_interval_measure();
+		++round;
+#endif
 	}
 
+#ifndef BENCHMARK
 	for (cpu = 0; cpu < cpu_count; cpu++) {
 		print_results(topo_depth, cpu);
 	}
 	num = mperf_print_footer();
 
-	if (!should_fork && rounds < (1024u << 7u))
+	if (!should_fork)
 		goto measure;
+#else
+	if (!should_fork && (round < total_rounds))
+		goto measure;
+#endif
 
 	for (num = 0; num < avail_monitors; num++)
 		monitors[num]->unregister();
