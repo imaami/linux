@@ -94,13 +94,12 @@ static unsigned long long tsc_diff;
 static double avg_freq[15];
 
 struct aperf_mperf {
-	unsigned long long aperf;
-	unsigned long long mperf;
+	uint64_t a;
+	uint64_t m;
 };
 
 struct measurement {
-	struct aperf_mperf previous;
-	struct aperf_mperf current;
+	struct aperf_mperf perf;
 #ifdef PER_CPU_TSC
 	uint64_t tsc;
 #endif
@@ -121,10 +120,10 @@ static __always_inline int mperf_get_tsc(unsigned long long *tsc)
 
 static __always_inline void mperf_rdtsc(uint64_t *tsc)
 {
-	uint64_t low, high;
+	unsigned long low, high;
 	asm volatile("lfence; rdtsc"
 		     : "=a" (low), "=d" (high));
-	*tsc = low | (high << 32u);
+	*tsc = (uint64_t)low | ((uint64_t)high << 32u);
 }
 
 static __always_inline void get_aperf_mperf_rdpru(struct aperf_mperf *dest)
@@ -139,8 +138,8 @@ static __always_inline void get_aperf_mperf_rdpru(struct aperf_mperf *dest)
 		     : "=a" (low_m), "=d" (high_m)
 		     : "c" (RDPRU_ECX_MPERF));
 
-	dest->aperf = ((low_a) | (high_a) << 32u);
-	dest->mperf = ((low_m) | (high_m) << 32u);
+	dest->a = (uint64_t)low_a | ((uint64_t)high_a << 32u);
+	dest->m = (uint64_t)low_m | ((uint64_t)high_m << 32u);
 }
 
 /*
@@ -184,7 +183,7 @@ static int mperf_get_count_percent(unsigned int id, double *percent,
 		return -1;
 	}
 
-	flt = (100.f * (float)stats[cpu].current.mperf) / div;
+	flt = (100.f * (float)stats[cpu].perf.m) / div;
 	*percent = (double)((id != Cx) ? flt : 100.f - flt);
 
 	return 0;
@@ -204,7 +203,7 @@ static __always_inline void mperf_init_stats_rdpru(int cpu)
 #ifdef PER_CPU_TSC
 	mperf_rdtsc(&stats[cpu].tsc);
 #endif
-	get_aperf_mperf_rdpru(&stats[cpu].previous);
+	get_aperf_mperf_rdpru(&stats[cpu].perf);
 	stats[cpu].is_valid = true;
 }
 
@@ -221,21 +220,28 @@ static __always_inline void mperf_init_stats_rdpru_cpusched(int cpu)
 
 static __always_inline void mperf_measure_stats_rdpru(int cpu)
 {
+	struct aperf_mperf prev_perf = {
+		.a = stats[cpu].perf.a,
+		.m = stats[cpu].perf.m
+	};
 #ifdef PER_CPU_TSC
 	uint64_t prev_tsc = stats[cpu].tsc;
 #endif
-	get_aperf_mperf_rdpru(&stats[cpu].current);
+
+	get_aperf_mperf_rdpru(&stats[cpu].perf);
 #ifdef PER_CPU_TSC
 	mperf_rdtsc(&stats[cpu].tsc);
 #endif
-	stats[cpu].current.aperf -= stats[cpu].previous.aperf;
-	stats[cpu].current.mperf -= stats[cpu].previous.mperf;
+
+	stats[cpu].perf.a -= prev_perf.a;
+	stats[cpu].perf.m -= prev_perf.m;
 #ifdef PER_CPU_TSC
 	stats[cpu].tsc -= prev_tsc;
 #endif
+
 	stats[cpu].freq = (uint64_t)(.5f + max_frequency *
-				     ((float)stats[cpu].current.aperf /
-				      (float)stats[cpu].current.mperf));
+				     ((float)stats[cpu].perf.a /
+				      (float)stats[cpu].perf.m));
 }
 
 static __always_inline void mperf_measure_stats_rdpru_cpusched(int cpu)
@@ -255,7 +261,7 @@ static __always_inline void mperf_measure_stats_rdpru_cpusched(int cpu)
 /*
 static __always_inline void mperf_init_stats_msr(int cpu)
 {
-	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].previous, cpu);
+	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].perf, cpu);
 }
 
 static __always_inline void mperf_init_stats_msr_cpusched(int cpu)
@@ -273,7 +279,7 @@ static __always_inline void mperf_measure_stats_msr(int cpu)
 	if (!stats[cpu].is_valid)
 		return;
 
-	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].current, cpu);
+	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].perf, cpu);
 }
 
 static __always_inline void mperf_measure_stats_msr_cpusched(int cpu)
@@ -286,7 +292,7 @@ static __always_inline void mperf_measure_stats_msr_cpusched(int cpu)
 		return;
 	}
 
-	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].current, cpu);
+	stats[cpu].is_valid = !get_aperf_mperf_msr(&stats[cpu].perf, cpu);
 }
 */
 /*
@@ -333,10 +339,16 @@ static int mperf_start_rdpru_cpusched(void)
 	mperf_rdtsc(&tsc1);
 #endif
 
+#ifdef NAIVE_CPU_ORDER
+	for (; tmp.cpu < 32; ++tmp.cpu) {
+		mperf_init_stats_rdpru_cpusched(tmp.cpu);
+	}
+#else
 	for (; tmp.cpu < 16; ++tmp.cpu) {
 		mperf_init_stats_rdpru_cpusched(tmp.cpu);
 		mperf_init_stats_rdpru_cpusched(tmp.cpu + 16);
 	}
+#endif
 
 #ifndef PER_CPU_TSC
 	mperf_rdtsc(&tsc2);
@@ -393,10 +405,16 @@ static int mperf_stop_rdpru_cpusched(void)
 	mperf_rdtsc(&tsc1);
 #endif
 
+#ifdef NAIVE_CPU_ORDER
+	for (; tmp.cpu < 32; ++tmp.cpu) {
+		mperf_measure_stats_rdpru_cpusched(tmp.cpu);
+	}
+#else
 	for (; tmp.cpu < 16; ++tmp.cpu) {
 		mperf_measure_stats_rdpru_cpusched(tmp.cpu);
 		mperf_measure_stats_rdpru_cpusched(tmp.cpu + 16);
 	}
+#endif
 
 #ifndef PER_CPU_TSC
 	mperf_rdtsc(&tmp2.tsc);
@@ -445,7 +463,6 @@ static int mperf_stop_rdpru_cpusched(void)
 
 unsigned int mperf_print_footer(void)
 {
-#if 0
 	fprintf(stderr,
 		"                  +------\n"
 		"%11.1f %6.1f %6.1f\n",
@@ -453,8 +470,6 @@ unsigned int mperf_print_footer(void)
 		avg_freq[(sizeof(avg_freq) / sizeof(*avg_freq)) - 8u],
 		avg_freq[0]);
 	return 2u;
-#endif
-	return 0;
 }
 
 /*
