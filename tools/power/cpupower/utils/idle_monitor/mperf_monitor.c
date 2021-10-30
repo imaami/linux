@@ -111,6 +111,20 @@ struct measurement {
 static cpu_af_t cpu_affinity;
 static struct measurement *stats;
 
+static const int cpu_topo[32] = {
+#ifndef NAIVE_CPU_ORDER
+	0x00, 0x10, 0x01, 0x11, 0x02, 0x12, 0x03, 0x13,
+	0x04, 0x14, 0x05, 0x15, 0x06, 0x16, 0x07, 0x17,
+	0x08, 0x18, 0x09, 0x19, 0x0a, 0x1a, 0x0b, 0x1b,
+	0x0c, 0x1c, 0x0d, 0x1d, 0x0e, 0x1e, 0x0f, 0x1f
+#else
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+	0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f
+#endif
+};
+
 /*
 static __always_inline int mperf_get_tsc(unsigned long long *tsc)
 {
@@ -310,11 +324,13 @@ static __always_inline void timespec_add_ns(struct timespec *dest,
 
 static __always_inline void randomize_cpu_affinity(void)
 {
+#if 0
 	cpu_af_t a = {{0u}};
 	struct timespec t = {0,0};
 	clock_gettime(CLOCK_REALTIME, &t);
 	a.__bits[0] = (unsigned long)t.tv_nsec;
 	sched_setaffinity(0, sizeof(a), (cpu_set_t *)&a);
+#endif
 }
 
 static int mperf_start_rdpru_cpusched(void)
@@ -339,16 +355,9 @@ static int mperf_start_rdpru_cpusched(void)
 	mperf_rdtsc(&tsc1);
 #endif
 
-#ifdef NAIVE_CPU_ORDER
 	for (; tmp.cpu < 32; ++tmp.cpu) {
-		mperf_init_stats_rdpru_cpusched(tmp.cpu);
+		mperf_init_stats_rdpru_cpusched(cpu_topo[tmp.cpu]);
 	}
-#else
-	for (; tmp.cpu < 16; ++tmp.cpu) {
-		mperf_init_stats_rdpru_cpusched(tmp.cpu);
-		mperf_init_stats_rdpru_cpusched(tmp.cpu + 16);
-	}
-#endif
 
 #ifndef PER_CPU_TSC
 	mperf_rdtsc(&tsc2);
@@ -405,16 +414,9 @@ static int mperf_stop_rdpru_cpusched(void)
 	mperf_rdtsc(&tsc1);
 #endif
 
-#ifdef NAIVE_CPU_ORDER
 	for (; tmp.cpu < 32; ++tmp.cpu) {
-		mperf_measure_stats_rdpru_cpusched(tmp.cpu);
+		mperf_measure_stats_rdpru_cpusched(cpu_topo[tmp.cpu]);
 	}
-#else
-	for (; tmp.cpu < 16; ++tmp.cpu) {
-		mperf_measure_stats_rdpru_cpusched(tmp.cpu);
-		mperf_measure_stats_rdpru_cpusched(tmp.cpu + 16);
-	}
-#endif
 
 #ifndef PER_CPU_TSC
 	mperf_rdtsc(&tmp2.tsc);
