@@ -673,6 +673,84 @@ static void *cpu_fn(void *arg)
 	return NULL;
 }
 
+static bool init_threads(void)
+{
+	int i = 0;
+	int thd = 0;
+	int errnum = 0;
+	const char *errmsg = NULL;
+	pthread_attr_t attr;
+	cpu_set_t cpumask;
+
+	errnum = pthread_attr_init(&attr);
+	if (errnum) {
+		errmsg = "pthread_attr_init";
+		goto fail;
+	}
+
+	if (sem_init(&thread_start_sem, 0, 0)) {
+		errnum = errno;
+		errmsg = "sem_init";
+		goto fail1;
+	}
+
+	cpu_thread = calloc(cpu_count, sizeof(*cpu_thread));
+	if (!cpu_thread) {
+		errnum = errno;
+		errmsg = "calloc";
+		goto fail2;
+	}
+
+	CPU_ZERO(&cpumask);
+
+	for (thd = 0; thd < cpu_count; ++thd) {
+		CPU_SET(thd, &cpumask);
+
+		errnum = pthread_attr_setaffinity_np(&attr, sizeof(cpumask),
+						     &cpumask);
+		if (errnum) {
+			errmsg = "pthread_attr_setaffinity_np";
+			goto fail3;
+		}
+
+		errnum = pthread_create(&cpu_thread[thd].id, &attr, cpu_fn,
+					&cpu_thread[thd]);
+		if (errnum) {
+			errmsg = "pthread_create";
+			goto fail3;
+		}
+
+		CPU_CLR(thd, &cpumask);
+	}
+
+	pthread_attr_destroy(&attr);
+
+	return true;
+
+fail3:
+	for (i = 0; i < thd; ++i)
+		pthread_cancel(cpu_thread[i].id);
+
+	for (i = 0; i < thd; ++i)
+		pthread_join(cpu_thread[i].id, NULL);
+
+	free(cpu_thread);
+	cpu_thread = NULL;
+
+fail2:
+	sem_destroy(&thread_start_sem);
+
+fail1:
+	pthread_attr_destroy(&attr);
+
+fail:
+	if (errmsg)
+		fprintf(stderr, "%s: %s%s%s\n", __func__, errmsg,
+			errnum ? ": " : "", errnum ? strerror(errnum) : "");
+	return false;
+
+}
+
 /*
  * This monitor provides:
  *
@@ -812,12 +890,12 @@ fail:
 		fprintf(stderr, "%s: %s%s%s\n", __func__, errmsg,
 			errnum ? ": " : "", errnum ? strerror(errnum) : "");
 	return NULL;
-
 }
 
 static void mperf_unregister(void)
 {
 	free(stats);
+	free(cpu_thread);
 }
 
 struct cpuidle_monitor mperf_monitor = {
