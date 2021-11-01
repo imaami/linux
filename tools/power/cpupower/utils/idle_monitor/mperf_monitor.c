@@ -357,15 +357,12 @@ static int mperf_start_rdpru_cpusched(void)
 	struct timespec ts2 = {0,0};
 */
 
-	for (; tmp.cpu < cpu_count; ++tmp.cpu)
-		sem_post(&thread_start_sem);
-
 	//clock_gettime(CLOCK_MONOTONIC_RAW, &ts1);
 #ifndef PER_CPU_TSC
 	mperf_rdtsc(&tsc1);
 #endif
 
-	for (tmp.cpu = 0; tmp.cpu < 32; ++tmp.cpu) {
+	for (; tmp.cpu < 32; ++tmp.cpu) {
 		mperf_init_stats_rdpru_cpusched(cpu_topo[tmp.cpu]);
 	}
 
@@ -668,7 +665,7 @@ static void *cpu_fn(void *arg)
 	if (sem_wait(&thread_start_sem))
 		return (void *)(intptr_t)errno;
 
-	mperf_init_stats_rdpru_cpusched(cpu_topo[id]);
+	//mperf_init_stats_rdpru_cpusched(cpu_topo[id]);
 
 	return NULL;
 }
@@ -767,11 +764,8 @@ struct cpuidle_monitor mperf_monitor;
 static struct cpuidle_monitor *mperf_register(void)
 {
 	int i = 0;
-	int thd = 0;
-	int errnum = 0;
-	const char *errmsg = NULL;
-	pthread_attr_t attr;
-	cpu_set_t cpumask;
+	int err = 0;
+	const char *msg = NULL;
 
 	if (cpu_count < 1)
 		return NULL;
@@ -782,20 +776,14 @@ static struct cpuidle_monitor *mperf_register(void)
 	if (init_maxfreq_mode())
 		return NULL;
 
-	errnum = pthread_attr_init(&attr);
-	if (errnum) {
-		errmsg = "pthread_attr_init";
-		goto fail;
-	}
-
 	/* Save original CPU affinity mask so we can restore it after each
 	 * measurement loop.
 	 */
 	if (sched_getaffinity(getpid(), sizeof(cpu_affinity),
 			      (cpu_set_t *)&cpu_affinity)) {
-		errnum = errno;
-		errmsg = "sched_getaffinity";
-		goto fail1;
+		err = errno;
+		msg = "sched_getaffinity";
+		goto fail;
 	}
 
 	/* Clear the affinity bit of the last CPU to measure during each
@@ -805,27 +793,13 @@ static struct cpuidle_monitor *mperf_register(void)
 	 */
 	CPU_CLR_S(cpu_count - 1, sizeof(cpu_affinity), &cpu_affinity);
 
-	if (sem_init(&thread_start_sem, 0, 0)) {
-		errnum = errno;
-		errmsg = "sem_init";
-		goto fail1;
-	}
-
-	cpu_thread = calloc(cpu_count, sizeof(*cpu_thread));
-
-	if (!cpu_thread) {
-		errnum = errno;
-		errmsg = "calloc";
-		goto fail2;
-	}
-
 	/* Free this at program termination */
 	stats = calloc(cpu_count, sizeof(*stats));
 
 	if (!stats) {
-		errnum = errno;
-		errmsg = "calloc";
-		goto fail3;
+		err = errno;
+		msg = "calloc";
+		goto fail;
 	}
 
 	for (; i < cpu_count; ++i) {
@@ -835,25 +809,15 @@ static struct cpuidle_monitor *mperf_register(void)
 	mperf_monitor.flags.per_cpu_schedule = (cpupower_cpu_info.vendor ==
 						X86_VENDOR_AMD);
 
-	CPU_ZERO(&cpumask);
-	for (thd = 0; thd < cpu_count; ++thd) {
-		CPU_SET(thd, &cpumask);
-		errnum = pthread_attr_setaffinity_np(&attr, sizeof(cpumask),
-						     &cpumask);
-		if (errnum) {
-			errmsg = "pthread_attr_setaffinity_np";
-			goto fail4;
-		}
-		errnum = pthread_create(&cpu_thread[thd].id, &attr, cpu_fn,
-					&cpu_thread[thd]);
-		if (errnum) {
-			errmsg = "pthread_create";
-			goto fail4;
-		}
-		CPU_CLR(thd, &cpumask);
+	if (!init_threads()) {
+		free(stats);
+		stats = NULL;
+		msg = "init_threads";
+		goto fail;
 	}
 
-	pthread_attr_destroy(&attr);
+	for (i = 0; i < cpu_count; ++i)
+		sem_post(&thread_start_sem);
 
 /*
 	if (mperf_monitor.flags.per_cpu_schedule) {
@@ -871,24 +835,12 @@ static struct cpuidle_monitor *mperf_register(void)
 */
 	return &mperf_monitor;
 
-fail4:
-	for (i = 0; i < thd; ++i)
-		pthread_cancel(cpu_thread[i].id);
-	for (i = 0; i < thd; ++i)
-		pthread_join(cpu_thread[i].id, NULL);
-	free(stats);
-	stats = NULL;
-fail3:
-	free(cpu_thread);
-	cpu_thread = NULL;
-fail2:
-	sem_destroy(&thread_start_sem);
-fail1:
-	pthread_attr_destroy(&attr);
 fail:
-	if (errmsg)
-		fprintf(stderr, "%s: %s%s%s\n", __func__, errmsg,
-			errnum ? ": " : "", errnum ? strerror(errnum) : "");
+	if (err)
+		fprintf(stderr, "%s: %s: %s\n", __func__, msg, strerror(err));
+	else
+		fprintf(stderr, "%s: %s failed\n", __func__, msg);
+
 	return NULL;
 }
 
