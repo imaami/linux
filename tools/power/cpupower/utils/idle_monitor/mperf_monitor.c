@@ -7,9 +7,7 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <pthread.h>
 #include <sched.h>
-#include <semaphore.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -21,6 +19,11 @@
 
 #include "helpers/helpers.h"
 #include "idle_monitor/cpupower-monitor.h"
+
+#ifdef PER_CPU_THREAD
+#include <pthread.h>
+#include <semaphore.h>
+#endif
 
 #define MSR_APERF	0xE8
 #define MSR_MPERF	0xE7
@@ -104,15 +107,21 @@ struct measurement {
 	uint64_t tsc;
 #endif
 	uint64_t freq;
+#ifndef PER_CPU_THREAD
 	cpu_af_t cpu_affinity;
+#endif
 	bool is_valid;
 };
 
+#ifdef PER_CPU_THREAD
 struct cpu_thread {
 	pthread_t id;
 };
+#endif
 
+#ifndef PER_CPU_THREAD
 static cpu_af_t cpu_affinity;
+#endif
 static struct measurement *stats;
 
 static const int cpu_topo[32] = {
@@ -129,8 +138,10 @@ static const int cpu_topo[32] = {
 #endif
 };
 
+#ifdef PER_CPU_THREAD
 static struct cpu_thread *cpu_thread;
 static sem_t thread_start_sem;
+#endif
 
 /*
 static __always_inline int mperf_get_tsc(unsigned long long *tsc)
@@ -230,11 +241,13 @@ static __always_inline void mperf_init_stats_rdpru(int cpu)
 
 static __always_inline void mperf_init_stats_rdpru_cpusched(int cpu)
 {
+#ifndef PER_CPU_THREAD
 	if (sched_setaffinity(0, sizeof(cpu_af_t),
 			      (cpu_set_t *)&stats[cpu].cpu_affinity)) {
 		stats[cpu].is_valid = false;
 		return;
 	}
+#endif
 
 	mperf_init_stats_rdpru(cpu);
 }
@@ -270,11 +283,13 @@ static __always_inline void mperf_measure_stats_rdpru_cpusched(int cpu)
 	if (!stats[cpu].is_valid)
 		return;
 
+#ifndef PER_CPU_THREAD
 	if (sched_setaffinity(0, sizeof(cpu_af_t),
 			      (cpu_set_t *)&stats[cpu].cpu_affinity)) {
 		stats[cpu].is_valid = false;
 		return;
 	}
+#endif
 
 	mperf_measure_stats_rdpru(cpu);
 }
@@ -657,6 +672,7 @@ use_sysfs:
 	return 0;
 }
 
+#ifdef PER_CPU_THREAD
 static void *cpu_fn(void *arg)
 {
 	__attribute__((unused)) struct cpu_thread *thd = arg;
@@ -747,6 +763,7 @@ fail:
 	return false;
 
 }
+#endif /* PER_CPU_THREAD */
 
 /*
  * This monitor provides:
@@ -776,6 +793,7 @@ static struct cpuidle_monitor *mperf_register(void)
 	if (init_maxfreq_mode())
 		return NULL;
 
+#ifndef PER_CPU_THREAD
 	/* Save original CPU affinity mask so we can restore it after each
 	 * measurement loop.
 	 */
@@ -792,6 +810,7 @@ static struct cpuidle_monitor *mperf_register(void)
 	 * CPU in between measurements.
 	 */
 	CPU_CLR_S(cpu_count - 1, sizeof(cpu_affinity), &cpu_affinity);
+#endif /* PER_CPU_THREAD */
 
 	/* Free this at program termination */
 	stats = calloc(cpu_count, sizeof(*stats));
@@ -802,22 +821,23 @@ static struct cpuidle_monitor *mperf_register(void)
 		goto fail;
 	}
 
+#ifndef PER_CPU_THREAD
 	for (; i < cpu_count; ++i) {
 		CPU_SET_S(i, sizeof(cpu_af_t), &stats[i].cpu_affinity);
 	}
+#endif
 
 	mperf_monitor.flags.per_cpu_schedule = (cpupower_cpu_info.vendor ==
 						X86_VENDOR_AMD);
 
+#ifdef PER_CPU_THREAD
 	if (!init_threads()) {
 		free(stats);
 		stats = NULL;
 		msg = "init_threads";
 		goto fail;
 	}
-
-	for (i = 0; i < cpu_count; ++i)
-		sem_post(&thread_start_sem);
+#endif
 
 /*
 	if (mperf_monitor.flags.per_cpu_schedule) {
@@ -847,7 +867,9 @@ fail:
 static void mperf_unregister(void)
 {
 	free(stats);
+#ifdef PER_CPU_THREAD
 	free(cpu_thread);
+#endif
 }
 
 struct cpuidle_monitor mperf_monitor = {
