@@ -14,9 +14,15 @@
 
 #define MAX_CPUS 32
 #define PER_CPU_TSC
-//#define PER_CPU_THREAD
+#define PER_CPU_THREAD
 //#define BENCHMARK
 //#define NAIVE_CPU_ORDER
+
+#ifdef PER_CPU_THREAD
+#ifndef PER_CPU_TSC
+#define PER_CPU_TSC
+#endif
+#endif
 
 #define MONITORS_MAX 20
 #define MONITOR_NAME_LEN 20
