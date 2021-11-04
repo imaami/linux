@@ -140,7 +140,7 @@ static const int cpu_topo[32] = {
 
 #ifdef PER_CPU_THREAD
 static struct cpu_thread *cpu_thread;
-static sem_t thread_start_sem;
+static sem_t thd_sem[3];
 #endif
 
 /*
@@ -678,12 +678,36 @@ static void *cpu_fn(void *arg)
 	__attribute__((unused)) struct cpu_thread *thd = arg;
 	__attribute__((unused)) intptr_t id = thd - cpu_thread;
 
-	if (sem_wait(&thread_start_sem))
+	if (sem_wait(&thd_sem[0]))
 		return (void *)(intptr_t)errno;
 
 	//mperf_init_stats_rdpru_cpusched(cpu_topo[id]);
 
 	return NULL;
+}
+
+static bool init_semaphores(void)
+{
+	int i = 0;
+	for (; i < sizeof(thd_sem) / sizeof(thd_sem[0]); ++i) {
+		if (sem_init(&thd_sem[i], 0, 0))
+			goto fail;
+	}
+	return true;
+
+fail:
+	fprintf(stderr, "%s: sem_init: %s\n", __func__, strerror(errno));
+	while (i-- > 0)
+		sem_destroy(&thd_sem[i]);
+	return false;
+}
+
+static void destroy_semaphores(void)
+{
+	int i = 0;
+	for (; i < sizeof(thd_sem) / sizeof(thd_sem[0]); ++i) {
+		sem_destroy(&thd_sem[i]);
+	}
 }
 
 static bool init_threads(void)
@@ -695,15 +719,12 @@ static bool init_threads(void)
 	pthread_attr_t attr;
 	cpu_set_t cpumask;
 
+	if (!init_semaphores())
+		return NULL;
+
 	errnum = pthread_attr_init(&attr);
 	if (errnum) {
 		errmsg = "pthread_attr_init";
-		goto fail;
-	}
-
-	if (sem_init(&thread_start_sem, 0, 0)) {
-		errnum = errno;
-		errmsg = "sem_init";
 		goto fail1;
 	}
 
@@ -751,12 +772,11 @@ fail3:
 	cpu_thread = NULL;
 
 fail2:
-	sem_destroy(&thread_start_sem);
-
-fail1:
 	pthread_attr_destroy(&attr);
 
-fail:
+fail1:
+	destroy_semaphores();
+
 	if (errmsg)
 		fprintf(stderr, "%s: %s%s%s\n", __func__, errmsg,
 			errnum ? ": " : "", errnum ? strerror(errnum) : "");
@@ -868,6 +888,7 @@ static void mperf_unregister(void)
 {
 	free(stats);
 #ifdef PER_CPU_THREAD
+	destroy_semaphores();
 	free(cpu_thread);
 #endif
 }
