@@ -19,6 +19,7 @@
 
 #include "helpers/helpers.h"
 #include "idle_monitor/cpupower-monitor.h"
+#include "idle_monitor/mperf_monitor.h"
 
 #ifdef PER_CPU_THREAD
 #include <pthread.h>
@@ -178,9 +179,13 @@ static __always_inline void get_aperf_mperf_rdpru(struct aperf_mperf *dest)
 static int get_aperf_mperf_msr(struct aperf_mperf *dest, int cpu)
 {
 	int ret;
+	unsigned long long a = 0u, m = 0u;
 
-	ret  = read_msr(cpu, MSR_APERF, &dest->aperf);
-	ret |= read_msr(cpu, MSR_MPERF, &dest->mperf);
+	ret  = read_msr(cpu, MSR_APERF, &a);
+	ret |= read_msr(cpu, MSR_MPERF, &m);
+
+	dest->a = (uint64_t)a;
+	dest->m = (uint64_t)m;
 
 	return ret;
 }
@@ -678,6 +683,8 @@ static void *cpu_fn(void *arg)
 	__attribute__((unused)) struct cpu_thread *thd = arg;
 	__attribute__((unused)) intptr_t id = thd - cpu_thread;
 
+	struct timespec interval = get_monitor_interval();
+
 	if (sem_wait(&thd_sem[0]))
 		return (void *)(intptr_t)errno;
 
@@ -800,7 +807,9 @@ fail1:
 struct cpuidle_monitor mperf_monitor;
 static struct cpuidle_monitor *mperf_register(void)
 {
+#ifndef PER_CPU_THREAD
 	int i = 0;
+#endif
 	int err = 0;
 	const char *msg = NULL;
 

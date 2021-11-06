@@ -25,7 +25,6 @@
 #endif
 
 #define MONITORS_MAX 20
-#define MONITOR_NAME_LEN 20
 
 /* CSTATE_NAME_LEN is limited by header field width defined
  * in cpupower-monitor.c. Header field width is defined to be
@@ -47,9 +46,10 @@ enum power_range_e {
 	RANGE_CORE,	/* AMD: unit, Intel: core, kernel_sysfs: core_id */
 	RANGE_PACKAGE,	/* Package, processor socket */
 	RANGE_MACHINE,	/* Machine, platform wide */
-	RANGE_MAX };
+	RANGE_MAX
+};
 
-typedef struct cstate {
+struct cstate {
 	int  id;
 	enum power_range_e range;
 	char name[CSTATE_NAME_LEN];
@@ -60,34 +60,18 @@ typedef struct cstate {
 				 unsigned int cpu);
 	int (*get_count)(unsigned int self_id, unsigned long long *count,
 			 unsigned int cpu);
-} cstate_t;
-
-struct cpuidle_monitor {
-	/* Name must not contain whitespaces */
-	char name[MONITOR_NAME_LEN];
-	unsigned int name_len;
-	unsigned int hw_states_num;
-	cstate_t *hw_states;
-	int (*start) (void);
-	int (*stop) (void);
-	struct cpuidle_monitor* (*do_register) (void);
-	void (*unregister)(void);
-	unsigned int overflow_s;
-	struct {
-		bool needs_root:1;
-		bool per_cpu_schedule:1;
-	} flags;
 };
+
+extern struct timespec get_monitor_interval(void);
 
 extern long long timespec_diff_us(struct timespec start, struct timespec end);
 
-#define print_overflow_err(mes, ov)						\
-do {										\
-	fprintf(stderr, gettext("Measure took %u seconds, but registers could "	\
-				"overflow at %u seconds, results "		\
-				"could be inaccurate\n"), mes, ov);		\
-} while(0)
-
+#define print_overflow_err(mes, ov) do {				\
+		fprintf(stderr, gettext("Measure took %u seconds, but "	\
+					"registers could overflow at "	\
+					"%u seconds, results could be "	\
+					"inaccurate\n"), mes, ov);	\
+	} while(0)
 
 /* Taken over from x86info project sources  -> return 0 on success */
 #include <sched.h>

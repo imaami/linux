@@ -25,22 +25,17 @@
 
 int read_msr(int cpu, unsigned int idx, unsigned long long *val)
 {
-	int fd;
-	char msr_file_name[64];
+	int ret = -1, fd;
+	char msr_file_name[64] = "/dev/cpu/";
 
-	sprintf(msr_file_name, "/dev/cpu/%d/msr", cpu);
+	sprintf(&msr_file_name[sizeof("/dev/cpu/") - 1u], "%d/msr", cpu);
 	fd = open(msr_file_name, O_RDONLY);
-	if (fd < 0)
-		return -1;
-	if (lseek(fd, idx, SEEK_CUR) == -1)
-		goto err;
-	if (read(fd, val, sizeof *val) != sizeof *val)
-		goto err;
-	close(fd);
-	return 0;
- err:
-	close(fd);
-	return -1;
+	if (fd >= 0) {
+		ret += (lseek(fd, idx, SEEK_CUR) != -1 &&
+			read(fd, val, sizeof *val) == sizeof *val);
+		close(fd);
+	}
+	return ret;
 }
 
 /*
