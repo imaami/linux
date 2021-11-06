@@ -190,7 +190,8 @@ static struct cpuidle_monitor *cpuidle_register(void)
 	return &cpuidle_sysfs_monitor;
 }
 
-static void cpuidle_unregister(void)
+static void cpuidle_unregister(struct cpuidle_monitor *mon
+			       __attribute__((unused)))
 {
 	int num;
 
