@@ -38,10 +38,15 @@ static char *progname;
 
 enum operation_mode_e { list = 1, show, show_all };
 static int mode;
-static int interval = 1000;
+static struct timespec interval = {1,0};
 static char *show_monitors_param;
 static struct cpupower_topology cpu_top;
 static unsigned int wake_cpus;
+
+struct timespec get_monitor_interval(void)
+{
+	return interval;
+}
 
 /* ToDo: Document this in the manpage */
 static char range_abbr[RANGE_MAX] = { 'T', 'C', 'P', 'M', };
@@ -310,11 +315,7 @@ static int fork_it(char **argv)
 	return 0;
 }
 
-#ifndef BENCHMARK
-static int do_interval_measure(const struct timespec *i)
-#else
 static int do_interval_measure(void)
-#endif
 {
 	unsigned int num = 0;
 	int cpu = 0;
@@ -330,7 +331,7 @@ static int do_interval_measure(void)
 	}
 
 #ifndef BENCHMARK
-	if (nanosleep(i, NULL))
+	if (nanosleep(&interval, NULL))
 		return -1;
 #endif
 
@@ -347,6 +348,7 @@ static int do_interval_measure(void)
 static void cmdline(int argc, char *argv[])
 {
 	int opt;
+	long long i;
 	progname = basename(argv[0]);
 
 	while ((opt = getopt(argc, argv, "+lci:m:")) != -1) {
@@ -360,7 +362,11 @@ static void cmdline(int argc, char *argv[])
 			/* only allow -i with -m or no option */
 			if (mode && mode != show)
 				print_wrong_arg_exit();
-			interval = atoi(optarg);
+			i = atoll(optarg);
+			if (i < 1)
+				print_wrong_arg_exit();
+			interval.tv_sec = i / 1000LL;
+			interval.tv_nsec = (i % 1000LL) * 1000000LL;
 			break;
 		case 'm':
 			if (mode)
@@ -382,8 +388,8 @@ static void cmdline(int argc, char *argv[])
 int cmd_monitor(int argc, char **argv)
 {
 #ifdef BENCHMARK
-	unsigned int round = 0;
-	unsigned int total_rounds = 0;
+	unsigned long long round = 0;
+	unsigned long long total_rounds = 0;
 #endif
 	bool should_fork = false;
 	unsigned int num = 0;
@@ -391,7 +397,6 @@ int cmd_monitor(int argc, char **argv)
 #ifndef BENCHMARK
 	int cpu;
 	int topo_depth;
-	struct timespec ival_ts;
 	char cursor[8];
 #endif
 
@@ -466,18 +471,16 @@ int cmd_monitor(int argc, char **argv)
 		   this more generically */
 #ifndef BENCHMARK
 		print_header(topo_depth);
-
-		ival_ts.tv_sec = interval / 1000;
-		ival_ts.tv_nsec = (interval % 1000) * 1000000;
 #else
-		if (interval > 0)
-			total_rounds = (unsigned int)interval;
+		if ((interval.tv_sec > 0 && interval.tv_nsec >= 0) ||
+		    (interval.tv_sec == 0 && interval.tv_nsec > 0))
+			total_rounds = (unsigned long long)interval.tv_sec * 1000ULL +
+				       (unsigned long long)interval.tv_nsec / 1000000ULL;
 #endif
 
 	measure:
+		do_interval_measure();
 #ifndef BENCHMARK
-		do_interval_measure(&ival_ts);
-
 		if (cpu > 0) {
 			if (!cursor[0]) {
 				cpu = snprintf(cursor, sizeof(cursor),
@@ -488,7 +491,6 @@ int cmd_monitor(int argc, char **argv)
 			fputs(cursor, stdout);
 		}
 #else
-		do_interval_measure();
 		++round;
 #endif
 	}

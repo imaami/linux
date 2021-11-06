@@ -17,6 +17,13 @@
 #include "cpupower.h"
 #include "helpers/bitmask.h"
 
+#define container_of(ptr, type, member) ({				\
+	void *__mptr = (void *)(ptr);					\
+	BUILD_BUG_ON_MSG(!__same_type(*(ptr), ((type *)0)->member) &&	\
+			 !__same_type(*(ptr), void),			\
+			 "pointer type mismatch in container_of()");	\
+	((type *)(__mptr - offsetof(type, member))); })
+
 /* Internationalization ****************************/
 #ifdef NLS
 
@@ -46,18 +53,17 @@ extern struct bitmask *cpus_chosen;
  * to split debug output away from normal output
 */
 #ifdef DEBUG
-extern int be_verbose;
+extern bool be_verbose;
 
-#define dprint(fmt, ...) {					\
+#define dprint(fmt, ...) do {					\
 		if (be_verbose) {				\
 			fprintf(stderr, "%s: " fmt,		\
 				__func__, ##__VA_ARGS__);	\
 		}						\
-	}
+	} while(0)
 #else
-static inline void dprint(const char *fmt, ...) { }
+#define dprint(fmt, ...) do {} while(0)
 #endif
-extern int be_verbose;
 /* Global verbose (-v) stuff *********************************/
 
 /* cpuid and cpuinfo helpers  **************************/

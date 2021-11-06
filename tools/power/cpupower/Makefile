@@ -139,9 +139,14 @@ UTIL_SRC := $(UTIL_OBJS:.o=.c)
 
 UTIL_OBJS := $(addprefix $(OUTPUT),$(UTIL_OBJS))
 
-UTIL_HEADERS = utils/helpers/helpers.h utils/idle_monitor/cpupower-monitor.h \
-	utils/helpers/bitmask.h \
-	utils/idle_monitor/idle_monitors.h utils/idle_monitor/idle_monitors.def
+UTIL_HEADERS := utils/helpers/bitmask.h			\
+		utils/helpers/helpers.h			\
+		utils/helpers/sysfs.h			\
+		utils/idle_monitor/cpuidle_monitor.h	\
+		utils/idle_monitor/cpupower-monitor.h	\
+		utils/idle_monitor/idle_monitors.def	\
+		utils/idle_monitor/idle_monitors.h	\
+		utils/idle_monitor/mperf_monitor.h
 
 LIB_HEADERS = 	lib/cpufreq.h lib/cpupower.h lib/cpuidle.h
 LIB_SRC = 	lib/cpufreq.c lib/cpupower.c lib/cpuidle.c
