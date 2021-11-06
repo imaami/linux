@@ -174,7 +174,7 @@ static struct cpuidle_monitor *snb_register(void)
 	return &intel_snb_monitor;
 }
 
-static void snb_unregister(void)
+static void snb_unregister(struct cpuidle_monitor *mon __attribute__((unused)))
 {
 	int num;
 	free(is_valid);

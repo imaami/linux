@@ -21,11 +21,13 @@
 #include "helpers/helpers.h"
 #include "idle_monitor/cpupower-monitor.h"
 #include "idle_monitor/idle_monitors.h"
+#include "idle_monitor/mperf_monitor.h"
 
 /* Define pointers to all monitors.  */
-#define DEF(x) & x ## _monitor ,
 struct cpuidle_monitor *all_monitors[] = {
+#define DEF_(name, type, member) & name ## _monitor member ,
 #include "idle_monitors.def"
+#undef DEF_
 NULL
 };
 
@@ -509,7 +511,7 @@ int cmd_monitor(int argc, char **argv)
 #endif
 
 	for (num = 0; num < avail_monitors; num++)
-		monitors[num]->unregister();
+		monitors[num]->unregister(monitors[num]);
 
 	cpu_topology_release(cpu_top);
 	return 0;

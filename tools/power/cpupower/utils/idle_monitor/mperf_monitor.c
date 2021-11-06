@@ -37,13 +37,6 @@
 
 #define MSR_AMD_HWCR 0xc0010015
 
-#define U64_BIT (CHAR_BIT * sizeof(uint64_t))
-#define UL_BIT (CHAR_BIT * sizeof(unsigned long))
-#define UL_CPUMASK_LEN(n) (((size_t)(n) + UL_BIT - 1u) / UL_BIT)
-#define UL_CPUMASK(ncpus) struct { unsigned long __bits[UL_CPUMASK_LEN(ncpus)]; }
-
-typedef UL_CPUMASK(MAX_CPUS) cpu_af_t;
-
 enum mperf_id { C0 = 0, Cx, AVG_FREQ, MPERF_CSTATE_COUNT };
 
 static int mperf_get_count_percent(unsigned int self_id, double *percent,
@@ -804,7 +797,7 @@ fail1:
  * Both is directly retrieved from HW registers and is independent
  * from kernel statistics.
  */
-struct cpuidle_monitor mperf_monitor;
+struct mperf_monitor mperf_monitor;
 static struct cpuidle_monitor *mperf_register(void)
 {
 #ifndef PER_CPU_THREAD
@@ -856,8 +849,9 @@ static struct cpuidle_monitor *mperf_register(void)
 	}
 #endif
 
-	mperf_monitor.flags.per_cpu_schedule = (cpupower_cpu_info.vendor ==
-						X86_VENDOR_AMD);
+	mperf_monitor.cpuidle.flags.per_cpu_schedule = (
+		cpupower_cpu_info.vendor == X86_VENDOR_AMD
+	);
 
 #ifdef PER_CPU_THREAD
 	if (!init_threads()) {
@@ -869,20 +863,20 @@ static struct cpuidle_monitor *mperf_register(void)
 #endif
 
 /*
-	if (mperf_monitor.flags.per_cpu_schedule) {
+	if (mperf_monitor.cpuidle.flags.per_cpu_schedule) {
 		if (!(cpupower_cpu_info.caps & CPUPOWER_CAP_AMD_RDPRU)) {
-			mperf_monitor.start = mperf_start_msr_cpusched;
-			mperf_monitor.stop = mperf_stop_msr_cpusched;
+			mperf_monitor.cpuidle.start = mperf_start_msr_cpusched;
+			mperf_monitor.cpuidle.stop = mperf_stop_msr_cpusched;
 		}
 	} else if (cpupower_cpu_info.caps & CPUPOWER_CAP_AMD_RDPRU) {
-		mperf_monitor.start = mperf_start_rdpru;
-		mperf_monitor.stop = mperf_stop_rdpru;
+		mperf_monitor.cpuidle.start = mperf_start_rdpru;
+		mperf_monitor.cpuidle.stop = mperf_stop_rdpru;
 	} else {
-		mperf_monitor.start = mperf_start_msr;
-		mperf_monitor.stop = mperf_stop_msr;
+		mperf_monitor.cpuidle.start = mperf_start_msr;
+		mperf_monitor.cpuidle.stop = mperf_stop_msr;
 	}
 */
-	return &mperf_monitor;
+	return &mperf_monitor.cpuidle;
 
 fail:
 	if (err)
@@ -893,8 +887,9 @@ fail:
 	return NULL;
 }
 
-static void mperf_unregister(void)
+static void mperf_unregister(struct cpuidle_monitor *mon)
 {
+	struct mperf_monitor *mm = to_mperf_monitor(mon);
 	free(stats);
 #ifdef PER_CPU_THREAD
 	destroy_semaphores();
@@ -902,17 +897,19 @@ static void mperf_unregister(void)
 #endif
 }
 
-struct cpuidle_monitor mperf_monitor = {
-	.name			= "Mperf",
-	.name_len		= sizeof("Mperf") - 1u,
-	.hw_states_num		= MPERF_CSTATE_COUNT,
-	.hw_states		= mperf_cstates,
-	.start			= mperf_start_rdpru_cpusched,
-	.stop			= mperf_stop_rdpru_cpusched,
-	.do_register		= mperf_register,
-	.unregister		= mperf_unregister,
-	.flags.needs_root	= true,
-	.overflow_s		= 922000000 /* 922337203 seconds TSC overflow
-					       at 20GHz */
+struct mperf_monitor mperf_monitor = {
+	.cpuidle = {
+		.name			= "Mperf",
+		.name_len		= sizeof("Mperf") - 1u,
+		.hw_states_num		= MPERF_CSTATE_COUNT,
+		.hw_states		= mperf_cstates,
+		.start			= mperf_start_rdpru_cpusched,
+		.stop			= mperf_stop_rdpru_cpusched,
+		.do_register		= mperf_register,
+		.unregister		= mperf_unregister,
+		.flags.needs_root	= true,
+		.overflow_s		= 922000000 /* 922337203 seconds TSC
+						       overflow at 20GHz */
+	}
 };
 #endif /* #if defined(__i386__) || defined(__x86_64__) */

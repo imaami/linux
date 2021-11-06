@@ -188,7 +188,8 @@ struct cpuidle_monitor *intel_nhm_register(void)
 	return &intel_nhm_monitor;
 }
 
-static void intel_nhm_unregister(void)
+static void intel_nhm_unregister(struct cpuidle_monitor *mon
+				 __attribute__((unused)))
 {
 	int num;
 

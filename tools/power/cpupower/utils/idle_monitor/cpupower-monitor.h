@@ -12,9 +12,8 @@
 
 #include "idle_monitor/idle_monitors.h"
 
-#define MAX_CPUS 32
 #define PER_CPU_TSC
-#define PER_CPU_THREAD
+//#define PER_CPU_THREAD
 //#define BENCHMARK
 //#define NAIVE_CPU_ORDER
 
