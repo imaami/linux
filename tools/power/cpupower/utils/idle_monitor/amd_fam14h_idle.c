@@ -305,7 +305,8 @@ static struct cpuidle_monitor *amd_fam14h_register(void)
 	return &amd_fam14h_monitor;
 }
 
-static void amd_fam14h_unregister(void)
+static void amd_fam14h_unregister(struct cpuidle_monitor *mon
+				  __attribute__((unused)))
 {
 	int num;
 	for (num = 0; num < AMD_FAM14H_STATE_NUM - 1; num++) {

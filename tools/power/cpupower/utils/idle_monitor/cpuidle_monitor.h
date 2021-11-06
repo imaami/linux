@@ -15,8 +15,8 @@ struct cpuidle_monitor {
 	cstate_t *hw_states;
 	int (*start) (void);
 	int (*stop) (void);
-	struct cpuidle_monitor* (*do_register) (void);
-	void (*unregister)(void);
+	struct cpuidle_monitor *(*do_register)(void);
+	void (*unregister)(struct cpuidle_monitor *);
 	unsigned int overflow_s;
 	struct {
 		bool needs_root:1;

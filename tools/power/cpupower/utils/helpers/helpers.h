@@ -12,17 +12,19 @@
 #include <libintl.h>
 #include <locale.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdnoreturn.h>
 
 #include "cpupower.h"
 #include "helpers/bitmask.h"
 
+#define types_eq(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))
 #define container_of(ptr, type, member) ({				\
 	void *__mptr = (void *)(ptr);					\
-	BUILD_BUG_ON_MSG(!__same_type(*(ptr), ((type *)0)->member) &&	\
-			 !__same_type(*(ptr), void),			\
-			 "pointer type mismatch in container_of()");	\
-	((type *)(__mptr - offsetof(type, member))); })
+	_Static_assert(types_eq(*(ptr), ((type *)0)->member) ||		\
+		       types_eq(*(ptr), void),				\
+		       "pointer type mismatch in container_of()");	\
+	((type *)((char *)__mptr - offsetof(type, member))); })
 
 /* Internationalization ****************************/
 #ifdef NLS

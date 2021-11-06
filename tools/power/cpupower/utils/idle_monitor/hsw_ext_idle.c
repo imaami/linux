@@ -169,7 +169,8 @@ static struct cpuidle_monitor *hsw_ext_register(void)
 	return &intel_hsw_ext_monitor;
 }
 
-static void hsw_ext_unregister(void)
+static void hsw_ext_unregister(struct cpuidle_monitor *mon
+			       __attribute__((unused)))
 {
 	int num;
 	free(is_valid);

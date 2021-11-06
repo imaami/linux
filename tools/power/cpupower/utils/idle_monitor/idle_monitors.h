@@ -10,9 +10,12 @@
 
 #include "cpuidle_monitor.h"
 
-#define DEF(x) extern struct cpuidle_monitor x ##_monitor;
+#define DEF(name)		DEF_(name, cpuidle, )
+#define DEF2(name, member)	DEF_(name, name, .member)
+
+#define DEF_(name, type, member) extern struct type ##_monitor name ##_monitor;
 #include "idle_monitors.def"
-#undef DEF
+#undef DEF_
 extern struct cpuidle_monitor *all_monitors[];
 
 #endif /* _CPUIDLE_IDLE_MONITORS_H_ */
