@@ -38,7 +38,7 @@ struct bitmask *online_cpus;
 struct bitmask *offline_cpus;
 
 #ifdef DEBUG
-int be_verbose;
+bool be_verbose;
 #endif
 
 static void print_help(void);
@@ -157,7 +157,7 @@ static void handle_options(int *argc, char ***argv)
 			exit(EXIT_SUCCESS);
 #ifdef DEBUG
 		} else if (!strcmp(param, "-d") || !strcmp(param, "--debug")) {
-			be_verbose = 1;
+			be_verbose = true;
 			new_argc++;
 			continue;
 #endif
