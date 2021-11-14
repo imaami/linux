@@ -3,6 +3,7 @@
 #define _LINUX_MM_TYPES_H
 
 #include <linux/mm_types_task.h>
+#include <linux/sched.h>
 
 #include <linux/auxvec.h>
 #include <linux/list.h>
@@ -15,6 +16,8 @@
 #include <linux/page-flags-layout.h>
 #include <linux/workqueue.h>
 #include <linux/seqlock.h>
+#include <linux/nodemask.h>
+#include <linux/mmdebug.h>
 
 #include <asm/mmu.h>
 
@@ -580,6 +583,18 @@ struct mm_struct {
 #ifdef CONFIG_IOMMU_SUPPORT
 		u32 pasid;
 #endif
+#ifdef CONFIG_LRU_GEN
+		struct {
+			/* the node of a global or per-memcg mm_struct list */
+			struct list_head list;
+#ifdef CONFIG_MEMCG
+			/* points to the memcg of the owner task above */
+			struct mem_cgroup *memcg;
+#endif
+			/* whether this mm_struct has been used since the last walk */
+			nodemask_t nodes;
+		} lrugen;
+#endif /* CONFIG_LRU_GEN */
 	} __randomize_layout;
 
 	/*
@@ -605,6 +620,66 @@ static inline cpumask_t *mm_cpumask(struct mm_struct *mm)
 {
 	return (struct cpumask *)&mm->cpu_bitmap;
 }
+
+#ifdef CONFIG_LRU_GEN
+
+struct lru_gen_mm_list {
+	/* a global or per-memcg mm_struct list */
+	struct list_head fifo;
+	/* protects the list above */
+	spinlock_t lock;
+};
+
+void lru_gen_add_mm(struct mm_struct *mm);
+void lru_gen_del_mm(struct mm_struct *mm);
+#ifdef CONFIG_MEMCG
+void lru_gen_migrate_mm(struct mm_struct *mm);
+#endif
+
+static inline void lru_gen_init_mm(struct mm_struct *mm)
+{
+	INIT_LIST_HEAD(&mm->lrugen.list);
+#ifdef CONFIG_MEMCG
+	mm->lrugen.memcg = NULL;
+#endif
+	nodes_clear(mm->lrugen.nodes);
+}
+
+/* Track the usage of each mm_struct so that we can skip inactive ones. */
+static inline void lru_gen_activate_mm(struct mm_struct *mm)
+{
+	/* unlikely but not a bug when racing with lru_gen_migrate_mm() */
+	VM_WARN_ON(list_empty(&mm->lrugen.list));
+
+	if (!(current->flags & PF_KTHREAD) && !nodes_full(mm->lrugen.nodes))
+		nodes_setall(mm->lrugen.nodes);
+}
+
+#else /* !CONFIG_LRU_GEN */
+
+static inline void lru_gen_add_mm(struct mm_struct *mm)
+{
+}
+
+static inline void lru_gen_del_mm(struct mm_struct *mm)
+{
+}
+
+#ifdef CONFIG_MEMCG
+static inline void lru_gen_migrate_mm(struct mm_struct *mm)
+{
+}
+#endif
+
+static inline void lru_gen_init_mm(struct mm_struct *mm)
+{
+}
+
+static inline void lru_gen_activate_mm(struct mm_struct *mm)
+{
+}
+
+#endif /* CONFIG_LRU_GEN */
 
 struct mmu_gather;
 extern void tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm);
