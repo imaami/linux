@@ -32,6 +32,7 @@ BLOCKING_NOTIFIER_HEAD(crypto_chain);
 EXPORT_SYMBOL_GPL(crypto_chain);
 
 DEFINE_STATIC_KEY_FALSE(crypto_boot_test_finished);
+EXPORT_SYMBOL_GPL(crypto_boot_test_finished);
 
 static struct crypto_alg *crypto_larval_wait(struct crypto_alg *alg);
 
@@ -166,11 +167,8 @@ void crypto_wait_for_test(struct crypto_larval *larval)
 	int err;
 
 	err = crypto_probing_notify(CRYPTO_MSG_ALG_REGISTER, larval->adult);
-	if (err != NOTIFY_STOP) {
-		if (WARN_ON(err != NOTIFY_DONE))
-			goto out;
-		crypto_alg_tested(larval->alg.cra_driver_name, 0);
-	}
+	if (WARN_ON_ONCE(err != NOTIFY_STOP))
+		goto out;
 
 	err = wait_for_completion_killable(&larval->completion);
 	WARN_ON(err);
