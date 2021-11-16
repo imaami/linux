@@ -710,10 +710,21 @@ bool sched_task_on_rq(struct task_struct *p)
 
 unsigned long get_wchan(struct task_struct *p)
 {
-	if (!p || p == current || task_is_running(p))
+	unsigned long ip = 0;
+	unsigned int state;
+
+	if (!p || p == current)
 		return 0;
 
-	return __get_wchan(p);
+	/* Only get wchan if task is blocked and we can keep it that way. */
+	raw_spin_lock_irq(&p->pi_lock);
+	state = READ_ONCE(p->__state);
+	smp_rmb(); /* see try_to_wake_up() */
+	if (state != TASK_RUNNING && state != TASK_WAKING && !p->on_rq)
+		ip = __get_wchan(p);
+	raw_spin_unlock_irq(&p->pi_lock);
+
+	return ip;
 }
 
 /*
