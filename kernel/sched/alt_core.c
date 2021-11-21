@@ -185,8 +185,8 @@ static inline void update_sched_rq_watermark(struct rq *rq)
 	rq->watermark = watermark;
 	cpu = cpu_of(rq);
 	if (watermark < last_wm) {
-		for (i = last_wm; i > watermark; i--)
-			cpumask_clear_cpu(cpu, sched_rq_watermark + SCHED_BITS - 1 - i);
+		for (i = last_wm - watermark; i > 0; i--)
+			cpumask_clear_cpu(cpu, sched_rq_watermark + SCHED_BITS - 1 - (i + watermark));
 #ifdef CONFIG_SCHED_SMT
 		if (static_branch_likely(&sched_smt_present) &&
 		    IDLE_TASK_SCHED_PRIO == last_wm)
@@ -196,8 +196,8 @@ static inline void update_sched_rq_watermark(struct rq *rq)
 		return;
 	}
 	/* last_wm < watermark */
-	for (i = watermark; i > last_wm; i--)
-		cpumask_set_cpu(cpu, sched_rq_watermark + SCHED_BITS - 1 - i);
+	for (i = watermark - last_wm; i > 0; i--)
+		cpumask_set_cpu(cpu, sched_rq_watermark + SCHED_BITS - 1 - (i + last_wm));
 #ifdef CONFIG_SCHED_SMT
 	if (static_branch_likely(&sched_smt_present) &&
 	    IDLE_TASK_SCHED_PRIO == watermark) {
