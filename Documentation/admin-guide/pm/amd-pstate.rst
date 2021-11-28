@@ -197,9 +197,9 @@ There are two types of hardware implementations for ``amd-pstate``: one is
 `Full MSR Support <perf_cap_>`_ and another is `Shared Memory Support
 <perf_cap_>`_. It can use :c:macro:`X86_FEATURE_CPPC` feature flag (for
 details refer to Processor Programming Reference (PPR) for AMD Family
-19h Model 21h, Revision B0 Processors [3]_) to indicate the different
-types. ``amd-pstate`` is to register different ``amd_pstate_perf_funcs``
-instances for different hardware implementations.
+19h Model 51h, Revision A1 Processors [3]_) to indicate the different
+types. ``amd-pstate`` is to register different ``static_call`` instances
+for different hardware implementations.
 
 Currently, some of Zen2 and Zen3 processors support ``amd-pstate``. In the
 future, it will be supported on more and more AMD processors.
@@ -211,7 +211,8 @@ Some new Zen3 processors such as Cezanne provide the MSR registers directly
 while the :c:macro:`X86_FEATURE_CPPC` CPU feature flag is set.
 ``amd-pstate`` can handle the MSR register to implement the fast switch
 function in ``CPUFreq`` that can shrink latency of frequency control on the
-interrupt context.
+interrupt context. The functions with ``pstate_xxx`` prefix represent the
+operations of MSR registers.
 
 Shared Memory Support
 ----------------------
@@ -219,7 +220,8 @@ Shared Memory Support
 If :c:macro:`X86_FEATURE_CPPC` CPU feature flag is not set, that means the
 processor supports shared memory solution. In this case, ``amd-pstate``
 uses the ``cppc_acpi`` helper methods to implement the callback functions
-of ``amd_pstate_perf_funcs``.
+that defined on ``static_call``. The functions with ``cppc_xxx`` prefix
+represent the operations of acpi cppc helpers for shared memory solution.
 
 
 AMD P-States and ACPI hardware P-States always can be supported in one
@@ -238,12 +240,7 @@ control its functionality at the system level. They located in the
  root@hr-test1:/home/ray# ls /sys/devices/system/cpu/cpufreq/policy0/*amd*
  /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_highest_perf
  /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_lowest_nonlinear_freq
- /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_lowest_nonlinear_perf
- /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_lowest_perf
  /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_max_freq
- /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_min_freq
- /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_nominal_freq
- /sys/devices/system/cpu/cpufreq/policy0/amd_pstate_nominal_perf
 
 
 ``amd_pstate_highest_perf / amd_pstate_max_freq``
@@ -251,29 +248,22 @@ control its functionality at the system level. They located in the
 Maximum CPPC performance and CPU frequency that the driver is allowed to
 set in percent of the maximum supported CPPC performance level (the highest
 performance supported in `AMD CPPC Performance Capability <perf_cap_>`_).
+In some of ASICs, the highest CPPC performance is not the one in the _CPC
+table, so we need to expose it to sysfs. If boost is not active but
+supported, this maximum frequency will be larger than the one in
+``cpuinfo``.
 This attribute is read-only.
 
-``amd_pstate_nominal_perf / amd_pstate_nominal_freq``
+``amd_pstate_lowest_nonlinear_freq``
 
-Nominal CPPC performance and CPU frequency that the driver is allowed to
-set in percent of the maximum supported CPPC performance level (Please see
-nominal performance in `AMD CPPC Performance Capability <perf_cap_>`_).
+The lowest non-linear CPPC CPU frequency that the driver is allowed to set
+in percent of the maximum supported CPPC performance level (Please see the
+lowest non-linear performance in `AMD CPPC Performance Capability
+<perf_cap_>`_).
 This attribute is read-only.
 
-``amd_pstate_lowest_nonlinear_perf / amd_pstate_lowest_nonlinear_freq``
-
-The lowest non-linear CPPC performance and CPU frequency that the driver is
-allowed to set in percent of the maximum supported CPPC performance level
-(Please see the lowest non-linear performance in `AMD CPPC Performance
-Capability <perf_cap_>`_).
-This attribute is read-only.
-
-``amd_pstate_lowest_perf``
-
-The lowest physical CPPC performance. The minimum CPU frequency can be read
-back from ``cpuinfo`` member of ``cpufreq_policy``, so we won't expose it
-here.
-This attribute is read-only.
+For other performance and frequency values, we can read them back from
+``/sys/devices/system/cpu/cpuX/acpi_cppc/``, see :ref:`cppc_sysfs`.
 
 
 ``amd-pstate`` vs ``acpi-cpufreq``
@@ -368,6 +358,6 @@ Reference
 .. [2] Advanced Configuration and Power Interface Specification,
        https://uefi.org/sites/default/files/resources/ACPI_Spec_6_4_Jan22.pdf
 
-.. [3] Processor Programming Reference (PPR) for AMD Family 19h Model 21h, Revision B0 Processors
-       https://www.amd.com/system/files/TechDocs/55898_B1_pub_0.50.zip
+.. [3] Processor Programming Reference (PPR) for AMD Family 19h Model 51h, Revision A1 Processors
+       https://www.amd.com/system/files/TechDocs/56569-A1-PUB.zip
 
