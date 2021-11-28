@@ -253,6 +253,7 @@ static void amd_pstate_adjust_perf(unsigned int cpu,
 	cap_perf = READ_ONCE(cpudata->highest_perf);
 	lowest_nonlinear_perf = READ_ONCE(cpudata->lowest_nonlinear_perf);
 
+	des_perf = cap_perf;
 	if (target_perf < capacity)
 		des_perf = DIV_ROUND_UP(cap_perf * target_perf, capacity);
 
