@@ -584,6 +584,8 @@
 
 	gpio-ranges = <&gpio 0 0 58>;
 
+	gpio-ranges = <&gpio 0 0 58>;
+
 	gpclk0_gpio49: gpclk0_gpio49 {
 		pin-gpclk {
 			pins = "gpio49";
