@@ -163,7 +163,7 @@ static int nhm_stop(void)
 
 struct cpuidle_monitor intel_nhm_monitor;
 
-struct cpuidle_monitor *intel_nhm_register(void)
+struct cpuidle_monitor *intel_nhm_register(session_t *session __attribute__((unused)))
 {
 	int num;
 

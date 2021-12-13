@@ -141,7 +141,7 @@ static int snb_stop(void)
 
 struct cpuidle_monitor intel_snb_monitor;
 
-static struct cpuidle_monitor *snb_register(void)
+static struct cpuidle_monitor *snb_register(session_t *session __attribute__((unused)))
 {
 	int num;
 

@@ -612,7 +612,7 @@ static int mperf_stop_msr(void)
  * On these machines the user would still get useful mperf
  * stats when acpi-cpufreq driver is loaded.
  */
-static int init_maxfreq_mode(void)
+static int init_maxfreq_mode(session_t *session)
 {
 	int ret;
 	unsigned long long hwcr;
@@ -646,7 +646,9 @@ static int init_maxfreq_mode(void)
 		}
 		if (1u & (hwcr >> 24u)) {
 			max_freq_mode = MAX_FREQ_TSC_REF;
-			max_frequency = 3500.f;
+			max_frequency = session_get_tsc_mhz(session);
+			if (max_frequency != 0.f)
+				fprintf(stderr, "Session reports TSC frequency as %f MHz\n", max_frequency);
 			return 0;
 		}
 	} else if (cpupower_cpu_info.vendor == X86_VENDOR_INTEL) {
@@ -798,7 +800,7 @@ fail1:
  * from kernel statistics.
  */
 struct mperf_monitor mperf_monitor;
-static struct cpuidle_monitor *mperf_register(void)
+static struct cpuidle_monitor *mperf_register(session_t *session)
 {
 #ifndef PER_CPU_THREAD
 	int i = 0;
@@ -812,7 +814,7 @@ static struct cpuidle_monitor *mperf_register(void)
 	if (!(cpupower_cpu_info.caps & (unsigned int)CPUPOWER_CAP_APERF))
 		return NULL;
 
-	if (init_maxfreq_mode())
+	if (init_maxfreq_mode(session))
 		return NULL;
 
 #ifndef PER_CPU_THREAD

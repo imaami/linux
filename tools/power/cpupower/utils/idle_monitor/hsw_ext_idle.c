@@ -143,7 +143,7 @@ static int hsw_ext_stop(void)
 
 struct cpuidle_monitor intel_hsw_ext_monitor;
 
-static struct cpuidle_monitor *hsw_ext_register(void)
+static struct cpuidle_monitor *hsw_ext_register(session_t *session __attribute__((unused)))
 {
 	int num;
 

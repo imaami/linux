@@ -140,7 +140,7 @@ void map_power_idle_state_name(char *tmp)
 void map_power_idle_state_name(char *tmp) { }
 #endif
 
-static struct cpuidle_monitor *cpuidle_register(void)
+static struct cpuidle_monitor *cpuidle_register(session_t *session __attribute__((unused)))
 {
 	unsigned int num;
 	int cpu;

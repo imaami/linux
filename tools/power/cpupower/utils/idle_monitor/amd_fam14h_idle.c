@@ -273,7 +273,7 @@ static __always_inline bool is_nbp1_capable(void)
 	return !!(val & (1u << 31u));
 }
 
-static struct cpuidle_monitor *amd_fam14h_register(void)
+static struct cpuidle_monitor *amd_fam14h_register(session_t *session __attribute__((unused)))
 {
 	int num;
 

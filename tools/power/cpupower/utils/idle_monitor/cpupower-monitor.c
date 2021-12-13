@@ -31,6 +31,16 @@ struct cpuidle_monitor *all_monitors[] = {
 NULL
 };
 
+struct session
+{
+	float tsc;
+};
+
+static struct session monitor_session = {
+	/* HACK! Get this from a command line argument at the very least. */
+	.tsc = 3572.185f
+};
+
 int cpu_count;
 
 static struct cpuidle_monitor *monitors[MONITORS_MAX];
@@ -421,7 +431,7 @@ int cmd_monitor(int argc, char **argv)
 	for (num = 0; all_monitors[num]; num++) {
 		dprint("Try to register: %s\n", all_monitors[num]->name);
 
-		test_mon = all_monitors[num]->do_register();
+		test_mon = all_monitors[num]->do_register(&monitor_session);
 		if (!test_mon)
 			continue;
 
@@ -515,4 +525,9 @@ int cmd_monitor(int argc, char **argv)
 
 	cpu_topology_release(cpu_top);
 	return 0;
+}
+
+float session_get_tsc_mhz(session_t *session)
+{
+	return session ? session->tsc : 0.0f;
 }

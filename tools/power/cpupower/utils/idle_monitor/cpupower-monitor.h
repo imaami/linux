@@ -62,6 +62,7 @@ struct cstate {
 };
 
 extern struct timespec get_monitor_interval(void);
+extern float session_get_tsc_mhz(session_t *session);
 
 extern long long timespec_diff_us(struct timespec start, struct timespec end);
 

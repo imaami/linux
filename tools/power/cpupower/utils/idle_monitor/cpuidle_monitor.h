@@ -6,6 +6,7 @@
 #define MONITOR_NAME_LEN 20
 
 typedef struct cstate cstate_t;
+typedef struct session session_t;
 
 struct cpuidle_monitor {
 	/* Name must not contain whitespaces */
@@ -15,7 +16,7 @@ struct cpuidle_monitor {
 	cstate_t *hw_states;
 	int (*start) (void);
 	int (*stop) (void);
-	struct cpuidle_monitor *(*do_register)(void);
+	struct cpuidle_monitor *(*do_register)(session_t *);
 	void (*unregister)(struct cpuidle_monitor *);
 	unsigned int overflow_s;
 	struct {
