@@ -1478,7 +1478,7 @@ CONFIG_DNS_RESOLVER=m
 # CONFIG_BATMAN_ADV is not set
 # CONFIG_OPENVSWITCH is not set
 # CONFIG_VSOCKETS is not set
-# CONFIG_NETLINK_DIAG is not set
+CONFIG_NETLINK_DIAG=y
 # CONFIG_MPLS is not set
 # CONFIG_NET_NSH is not set
 # CONFIG_HSR is not set
