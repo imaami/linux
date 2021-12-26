@@ -144,9 +144,9 @@ static int pstate_init_perf(struct amd_cpudata *cpudata)
 	 */
 	WRITE_ONCE(cpudata->highest_perf, amd_get_highest_perf());
 
-	WRITE_ONCE(cpudata->nominal_perf, CAP1_NOMINAL_PERF(cap1));
-	WRITE_ONCE(cpudata->lowest_nonlinear_perf, CAP1_LOWNONLIN_PERF(cap1));
-	WRITE_ONCE(cpudata->lowest_perf, CAP1_LOWEST_PERF(cap1));
+	WRITE_ONCE(cpudata->nominal_perf, AMD_CPPC_NOMINAL_PERF(cap1));
+	WRITE_ONCE(cpudata->lowest_nonlinear_perf, AMD_CPPC_LOWNONLIN_PERF(cap1));
+	WRITE_ONCE(cpudata->lowest_perf, AMD_CPPC_LOWEST_PERF(cap1));
 
 	return 0;
 }
@@ -215,14 +215,14 @@ static void amd_pstate_update(struct amd_cpudata *cpudata, u32 min_perf,
 	u64 prev = READ_ONCE(cpudata->cppc_req_cached);
 	u64 value = prev;
 
-	value &= ~REQ_MIN_PERF(~0L);
-	value |= REQ_MIN_PERF(min_perf);
+	value &= ~AMD_CPPC_MIN_PERF(~0L);
+	value |= AMD_CPPC_MIN_PERF(min_perf);
 
-	value &= ~REQ_DES_PERF(~0L);
-	value |= REQ_DES_PERF(des_perf);
+	value &= ~AMD_CPPC_DES_PERF(~0L);
+	value |= AMD_CPPC_DES_PERF(des_perf);
 
-	value &= ~REQ_MAX_PERF(~0L);
-	value |= REQ_MAX_PERF(max_perf);
+	value &= ~AMD_CPPC_MAX_PERF(~0L);
+	value |= AMD_CPPC_MAX_PERF(max_perf);
 
 	trace_amd_pstate_perf(min_perf, des_perf, max_perf,
 			      cpudata->cpu, (value != prev), fast_switch);
