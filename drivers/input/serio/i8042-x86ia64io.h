@@ -992,13 +992,6 @@ static const struct dmi_system_id __initconst i8042_dmi_kbdreset_table[] = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "C504"),
 		},
 	},
-	{
-		/* ASUS ZenBook UM325UA */
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
-			DMI_MATCH(DMI_PRODUCT_NAME, "ZenBook UX325UA_UM325UA"),
-		},
-	},
 	{ }
 };
 
