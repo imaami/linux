@@ -190,6 +190,7 @@ enum chips { lm90, adm1032, lm99, lm86, max6657, max6659, adt7461, max6680,
 #define LM90_HAVE_EXTENDED_TEMP	(1 << 8) /* extended temperature support*/
 #define LM90_PAUSE_FOR_CONFIG	(1 << 9) /* Pause conversion for config	*/
 #define LM90_HAVE_CRIT		(1 << 10)/* Chip supports CRIT/OVERT register	*/
+#define LM90_HAVE_CRIT_ALRM_SWP	(1 << 11)/* critical alarm bits swapped	*/
 
 /* LM90 status */
 #define LM90_STATUS_LTHRM	(1 << 0) /* local THERM limit tripped */
@@ -199,6 +200,7 @@ enum chips { lm90, adm1032, lm99, lm86, max6657, max6659, adt7461, max6680,
 #define LM90_STATUS_RHIGH	(1 << 4) /* remote high temp limit tripped */
 #define LM90_STATUS_LLOW	(1 << 5) /* local low temp limit tripped */
 #define LM90_STATUS_LHIGH	(1 << 6) /* local high temp limit tripped */
+#define LM90_STATUS_BUSY	(1 << 7) /* conversion is ongoing */
 
 #define MAX6696_STATUS2_R2THRM	(1 << 1) /* remote2 THERM limit tripped */
 #define MAX6696_STATUS2_R2OPEN	(1 << 2) /* remote2 is an open circuit */
@@ -415,7 +417,8 @@ static const struct lm90_params lm90_params[] = {
 		.reg_local_ext = MAX6657_REG_R_LOCAL_TEMPL,
 	},
 	[max6680] = {
-		.flags = LM90_HAVE_OFFSET | LM90_HAVE_CRIT,
+		.flags = LM90_HAVE_OFFSET | LM90_HAVE_CRIT
+		  | LM90_HAVE_CRIT_ALRM_SWP,
 		.alert_alarms = 0x7c,
 		.max_convrate = 7,
 	},
@@ -818,7 +821,7 @@ static int lm90_update_device(struct device *dev)
 		val = lm90_read_reg(client, LM90_REG_R_STATUS);
 		if (val < 0)
 			return val;
-		data->alarms = val;	/* lower 8 bit of alarms */
+		data->alarms = val & ~LM90_STATUS_BUSY;
 
 		if (data->kind == max6696) {
 			val = lm90_select_remote_channel(data, 1);
@@ -1201,6 +1204,7 @@ static const u8 lm90_temp_emerg_index[3] = {
 static const u8 lm90_min_alarm_bits[3] = { 5, 3, 11 };
 static const u8 lm90_max_alarm_bits[3] = { 6, 4, 12 };
 static const u8 lm90_crit_alarm_bits[3] = { 0, 1, 9 };
+static const u8 lm90_crit_alarm_bits_swapped[3] = { 1, 0, 9 };
 static const u8 lm90_emergency_alarm_bits[3] = { 15, 13, 14 };
 static const u8 lm90_fault_bits[3] = { 0, 2, 10 };
 
@@ -1226,7 +1230,10 @@ static int lm90_temp_read(struct device *dev, u32 attr, int channel, long *val)
 		*val = (data->alarms >> lm90_max_alarm_bits[channel]) & 1;
 		break;
 	case hwmon_temp_crit_alarm:
-		*val = (data->alarms >> lm90_crit_alarm_bits[channel]) & 1;
+		if (data->flags & LM90_HAVE_CRIT_ALRM_SWP)
+			*val = (data->alarms >> lm90_crit_alarm_bits_swapped[channel]) & 1;
+		else
+			*val = (data->alarms >> lm90_crit_alarm_bits[channel]) & 1;
 		break;
 	case hwmon_temp_emergency_alarm:
 		*val = (data->alarms >> lm90_emergency_alarm_bits[channel]) & 1;
