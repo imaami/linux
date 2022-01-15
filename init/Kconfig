@@ -1264,6 +1264,22 @@ config USER_NS
 
 	  If unsure, say N.
 
+config USER_NS_UNPRIVILEGED
+	bool "Allow unprivileged users to create namespaces"
+	default y
+	depends on USER_NS
+	help
+	  When disabled, unprivileged users will not be able to create
+	  new namespaces. Allowing users to create their own namespaces
+	  has been part of several recent local privilege escalation
+	  exploits, so if you need user namespaces but are
+	  paranoid^Wsecurity-conscious you want to disable this.
+
+	  This setting can be overridden at runtime via the
+	  kernel.unprivileged_userns_clone sysctl.
+
+	  If unsure, say Y.
+
 config PID_NS
 	bool "PID Namespaces"
 	default y
@@ -1307,6 +1323,18 @@ config SCHED_AUTOGROUP
 	  of workloads isolates aggressive CPU burners (like build jobs) from
 	  desktop applications.  Task group autogeneration is currently based
 	  upon task session.
+
+config SCHED_AUTOGROUP_DEFAULT_ENABLED
+	bool "Enable automatic process group scheduling feature"
+	default y
+	depends on SCHED_AUTOGROUP
+	help
+	  If set, automatic process group scheduling will be enabled per
+	  default but can be disabled through passing autogroup=0 on the
+	  kernel commandline during boot or a value of 0 via the file
+	  proc/sys/kernel/sched_autogroup_enabled.
+
+	  If unsure say Y.
 
 config SYSFS_DEPRECATED
 	bool "Enable deprecated sysfs features to support old userspace tools"
