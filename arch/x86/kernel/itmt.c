@@ -190,6 +190,7 @@ void sched_set_itmt_core_prio(int prio, int core_cpu)
 {
 	int cpu, i = 1;
 
+	pr_info("sched_set_itmt_core_prio: %d -- %d\n", core_cpu, prio);
 	for_each_cpu(cpu, topology_sibling_cpumask(core_cpu)) {
 		int smt_prio;
 
