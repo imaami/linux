@@ -120,8 +120,6 @@ DEFINE_PER_CPU(cpumask_t [NR_CPU_AFFINITY_LEVELS], sched_cpu_topo_masks);
 DEFINE_PER_CPU(cpumask_t *, sched_cpu_llc_mask);
 DEFINE_PER_CPU(cpumask_t *, sched_cpu_topo_end_mask);
 
-static cpumask_t sched_preferred_cpumask ____cacheline_aligned_in_smp;
-
 #ifdef CONFIG_SCHED_SMT
 DEFINE_STATIC_KEY_FALSE(sched_smt_present);
 EXPORT_SYMBOL_GPL(sched_smt_present);
@@ -7087,14 +7085,11 @@ static void sched_init_topology_cpumask_early(void)
 	}
 }
 
-#define TOPOLOGY_CPUMASK(name, mask, itmt, last)\
+#define TOPOLOGY_CPUMASK(name, mask, last)\
 	if (cpumask_and(topo, topo, mask)) {					\
-		if (itmt && cpumask_and(topo, topo, &sched_preferred_cpumask))	\
-			pr_info("sched: cpu#%02d topo: 0x%016lx - "#name" itmt",\
-				cpu, (topo++)->bits[0]);			\
 		cpumask_copy(topo, mask);					\
-		pr_info("sched: cpu#%02d topo: 0x%016lx - "#name,		\
-			cpu, (topo++)->bits[0]);				\
+		printk(KERN_INFO "sched: cpu#%02d topo: 0x%08lx - "#name,	\
+		       cpu, (topo++)->bits[0]);					\
 	}									\
 	if (!last)								\
 		cpumask_complement(topo, mask)
@@ -7104,8 +7099,6 @@ static void sched_init_topology_cpumask(void)
 	int cpu;
 	cpumask_t *topo;
 
-	sched_preferred_cpumask.bits[0] = 0x00600060;
-
 	for_each_online_cpu(cpu) {
 		/* take chance to reset time slice for idle tasks */
 		cpu_rq(cpu)->idle->time_slice = sched_timeslice_ns;
@@ -7114,21 +7107,21 @@ static void sched_init_topology_cpumask(void)
 
 		cpumask_complement(topo, cpumask_of(cpu));
 #ifdef CONFIG_SCHED_SMT
-		TOPOLOGY_CPUMASK(smt, topology_sibling_cpumask(cpu), false, false);
+		TOPOLOGY_CPUMASK(smt, topology_sibling_cpumask(cpu), false);
 #endif
 		per_cpu(sd_llc_id, cpu) = cpumask_first(cpu_coregroup_mask(cpu));
 		per_cpu(sched_cpu_llc_mask, cpu) = topo;
-		TOPOLOGY_CPUMASK(coregroup, cpu_coregroup_mask(cpu), true, false);
+		TOPOLOGY_CPUMASK(coregroup, cpu_coregroup_mask(cpu), false);
 
-		TOPOLOGY_CPUMASK(core, topology_core_cpumask(cpu), true, false);
+		TOPOLOGY_CPUMASK(core, topology_core_cpumask(cpu), false);
 
-		TOPOLOGY_CPUMASK(others, cpu_online_mask, true, true);
+		TOPOLOGY_CPUMASK(others, cpu_online_mask, true);
 
 		per_cpu(sched_cpu_topo_end_mask, cpu) = topo;
-		pr_info("sched: cpu#%02d llc_id = %d, llc_mask idx = %d\n",
-			cpu, per_cpu(sd_llc_id, cpu),
-			(int) (per_cpu(sched_cpu_llc_mask, cpu) -
-			       per_cpu(sched_cpu_topo_masks, cpu)));
+		printk(KERN_INFO "sched: cpu#%02d llc_id = %d, llc_mask idx = %d\n",
+		       cpu, per_cpu(sd_llc_id, cpu),
+		       (int) (per_cpu(sched_cpu_llc_mask, cpu) -
+			      per_cpu(sched_cpu_topo_masks, cpu)));
 	}
 }
 #endif
