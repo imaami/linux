@@ -128,8 +128,6 @@
 
 			gpio-ranges = <&gpio 0 0 54>;
 
-			gpio-ranges = <&gpio 0 0 54>;
-
 			/* Defines common pin muxing groups
 			 *
 			 * While each pin can have its mux selected
