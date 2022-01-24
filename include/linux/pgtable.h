@@ -260,15 +260,12 @@ static inline int pmdp_clear_flush_young(struct vm_area_struct *vma,
 
 #ifndef arch_has_hw_pte_young
 /*
- * Return whether the accessed bit is supported by the local CPU or system-wide.
+ * Return whether the accessed bit is supported by the local CPU.
  *
- * This stub assumes accessing thru an old PTE triggers a page fault.
+ * This stub assumes accessing through an old PTE triggers a page fault.
  * Architectures that automatically set the access bit should overwrite it.
- *
- * Note that the system-wide support can be flaky and therefore shouldn't be
- * used when involving correctness.
  */
-static inline bool arch_has_hw_pte_young(bool local)
+static inline bool arch_has_hw_pte_young(void)
 {
 	return false;
 }

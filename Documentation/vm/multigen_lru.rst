@@ -68,9 +68,9 @@ Data centers
  [can_swap [full_scan]]`` to ``/sys/kernel/debug/lru_gen`` to trigger
  the aging. It scans PTEs for accessed pages and promotes them to the
  youngest generation ``max_gen``. Then it creates a new generation
- ``max_gen+1``. Set ``can_swap`` to 1 to scan for accessed anon pages
- when swap is off. Set ``full_scan`` to 0 to reduce the overhead as
- well as the coverage when scanning PTEs.
+ ``max_gen+1``. Set ``can_swap`` to ``1`` to scan for accessed anon
+ pages when swap is off. Set ``full_scan`` to ``0`` to reduce the
+ overhead as well as the coverage when scanning PTEs.
 
 :Proactive reclaim: Write ``- memcg_id node_id min_gen [swappiness
  [nr_to_reclaim]]`` to ``/sys/kernel/debug/lru_gen`` to trigger the
