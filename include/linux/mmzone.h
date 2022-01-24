@@ -438,11 +438,6 @@ struct lru_gen_mm_walk {
 	bool full_scan;
 };
 
-static inline bool lru_gen_in_pgfault(void)
-{
-	return current->in_lru_fault;
-}
-
 void lru_gen_init_state(struct mem_cgroup *memcg, struct lruvec *lruvec);
 void lru_gen_look_around(struct page_vma_mapped_walk *pvmw);
 
@@ -452,11 +447,6 @@ void lru_gen_free_memcg(struct mem_cgroup *memcg);
 #endif
 
 #else /* !CONFIG_LRU_GEN */
-
-static inline bool lru_gen_in_pgfault(void)
-{
-	return false;
-}
 
 static inline void lru_gen_init_state(struct mem_cgroup *memcg, struct lruvec *lruvec)
 {

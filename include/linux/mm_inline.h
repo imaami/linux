@@ -105,6 +105,11 @@ static inline bool lru_gen_enabled(void)
 #endif
 }
 
+static inline bool lru_gen_in_fault(void)
+{
+	return current->in_lru_fault;
+}
+
 static inline int lru_gen_from_seq(unsigned long seq)
 {
 	return seq % MAX_NR_GENS;
@@ -151,7 +156,7 @@ static inline void lru_gen_balance_size(struct lruvec *lruvec, struct folio *fol
 	int type = folio_is_file_lru(folio);
 	int zone = folio_zonenum(folio);
 	int delta = folio_nr_pages(folio);
-	enum lru_list lru = type * LRU_FILE;
+	enum lru_list lru = type * LRU_INACTIVE_FILE;
 	struct lru_gen_struct *lrugen = &lruvec->lrugen;
 
 	VM_BUG_ON(old_gen != -1 && old_gen >= MAX_NR_GENS);
@@ -199,7 +204,7 @@ static inline bool lru_gen_add_folio(struct lruvec *lruvec, struct folio *folio,
 	if (folio_test_unevictable(folio) || !lrugen->enabled)
 		return false;
 	/*
-	 * There are three cases for this page:
+	 * There are three common cases for this page:
 	 * 1) If it shouldn't be evicted, e.g., it was just faulted in, add it
 	 *    to the youngest generation.
 	 * 2) If it can't be evicted immediately, i.e., it's an anon page and
@@ -269,6 +274,11 @@ static inline bool lru_gen_del_folio(struct lruvec *lruvec, struct folio *folio,
 #else
 
 static inline bool lru_gen_enabled(void)
+{
+	return false;
+}
+
+static inline bool lru_gen_in_fault(void)
 {
 	return false;
 }
