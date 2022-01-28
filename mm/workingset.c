@@ -300,7 +300,7 @@ static void lru_gen_refault(struct folio *folio, void *shadow)
 	 * 2) For pages accessed thru file descriptors, numbers of accesses
 	 *    might have been beyond the limit.
 	 */
-	if (lru_gen_in_pgfault() || refs + workingset == BIT(LRU_REFS_WIDTH)) {
+	if (lru_gen_in_fault() || refs + workingset == BIT(LRU_REFS_WIDTH)) {
 		folio_set_workingset(folio);
 		mod_lruvec_state(lruvec, WORKINGSET_RESTORE_BASE + type, delta);
 	}

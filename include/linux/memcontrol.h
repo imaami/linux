@@ -985,6 +985,22 @@ void unlock_page_memcg(struct page *page);
 
 void __mod_memcg_state(struct mem_cgroup *memcg, int idx, int val);
 
+static inline bool mem_cgroup_trylock_pages(struct mem_cgroup *memcg)
+{
+	rcu_read_lock();
+
+	if (mem_cgroup_disabled() || !atomic_read(&memcg->moving_account))
+		return true;
+
+	rcu_read_unlock();
+	return false;
+}
+
+static inline void mem_cgroup_unlock_pages(void)
+{
+	rcu_read_unlock();
+}
+
 /* idx can be of type enum memcg_stat_item or node_stat_item */
 static inline void mod_memcg_state(struct mem_cgroup *memcg,
 				   int idx, int val)
@@ -1393,22 +1409,28 @@ mem_cgroup_print_oom_meminfo(struct mem_cgroup *memcg)
 
 static inline void lock_page_memcg(struct page *page)
 {
-	/* to match folio_memcg_rcu() */
-	rcu_read_lock();
 }
 
 static inline void unlock_page_memcg(struct page *page)
 {
-	rcu_read_unlock();
 }
 
 static inline void folio_memcg_lock(struct folio *folio)
 {
-	/* to match folio_memcg_rcu() */
-	rcu_read_lock();
 }
 
 static inline void folio_memcg_unlock(struct folio *folio)
+{
+}
+
+static inline bool mem_cgroup_trylock_pages(struct mem_cgroup *memcg)
+{
+	/* to match folio_memcg_rcu() */
+	rcu_read_lock();
+	return true;
+}
+
+static inline void mem_cgroup_unlock_pages(void)
 {
 	rcu_read_unlock();
 }
