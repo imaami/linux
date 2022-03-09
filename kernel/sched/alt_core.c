@@ -67,7 +67,7 @@ __read_mostly int sysctl_resched_latency_warn_once = 1;
 #define sched_feat(x)	(0)
 #endif /* CONFIG_SCHED_DEBUG */
 
-#define ALT_SCHED_VERSION "v5.16-r0-matthies"
+#define ALT_SCHED_VERSION "v5.16-r0-tm"
 
 /* rt_prio(prio) defined in include/linux/sched/rt.h */
 #define rt_task(p)		rt_prio((p)->prio)
@@ -2982,7 +2982,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	return 0;
 }
 
-void sched_post_fork(struct task_struct *p, struct kernel_clone_args *kargs)
+void sched_cgroup_fork(struct task_struct *p, struct kernel_clone_args *kargs)
 {
 	unsigned long flags;
 	struct rq *rq;
@@ -3023,6 +3023,13 @@ void sched_post_fork(struct task_struct *p, struct kernel_clone_args *kargs)
 	 */
 	__set_task_cpu(p, smp_processor_id());
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
+}
+
+void sched_post_fork(struct task_struct *p)
+{
+#ifdef CONFIG_UCLAMP_TASK
+	uclamp_post_fork(p);
+#endif
 }
 
 #ifdef CONFIG_SCHEDSTATS
