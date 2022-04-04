@@ -66,7 +66,7 @@ __read_mostly int sysctl_resched_latency_warn_once = 1;
 #define sched_feat(x)	(0)
 #endif /* CONFIG_SCHED_DEBUG */
 
-#define ALT_SCHED_VERSION "v5.16-r0-tm"
+#define ALT_SCHED_VERSION "v5.16-r1"
 
 /* rt_prio(prio) defined in include/linux/sched/rt.h */
 #define rt_task(p)		rt_prio((p)->prio)
@@ -785,6 +785,25 @@ bool sched_task_on_rq(struct task_struct *p)
 	return task_on_rq_queued(p);
 }
 
+unsigned long get_wchan(struct task_struct *p)
+{
+	unsigned long ip = 0;
+	unsigned int state;
+
+	if (!p || p == current)
+		return 0;
+
+	/* Only get wchan if task is blocked and we can keep it that way. */
+	raw_spin_lock_irq(&p->pi_lock);
+	state = READ_ONCE(p->__state);
+	smp_rmb(); /* see try_to_wake_up() */
+	if (state != TASK_RUNNING && state != TASK_WAKING && !p->on_rq)
+		ip = __get_wchan(p);
+	raw_spin_unlock_irq(&p->pi_lock);
+
+	return ip;
+}
+
 /*
  * Add/Remove/Requeue task to/from the runqueue routines
  * Context: rq->lock
@@ -824,25 +843,6 @@ static inline void dequeue_task(struct task_struct *p, struct rq *rq, int flags)
 #endif
 
 	sched_update_tick_dependency(rq);
-}
-
-unsigned long get_wchan(struct task_struct *p)
-{
-	unsigned long ip = 0;
-	unsigned int state;
-
-	if (!p || p == current)
-		return 0;
-
-	/* Only get wchan if task is blocked and we can keep it that way. */
-	raw_spin_lock_irq(&p->pi_lock);
-	state = READ_ONCE(p->__state);
-	smp_rmb(); /* see try_to_wake_up() */
-	if (state != TASK_RUNNING && state != TASK_WAKING && !p->on_rq)
-		ip = __get_wchan(p);
-	raw_spin_unlock_irq(&p->pi_lock);
-
-	return ip;
 }
 
 static inline void enqueue_task(struct task_struct *p, struct rq *rq, int flags)
@@ -1412,6 +1412,7 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 	 * per-task data have been completed by this moment.
 	 */
 	smp_wmb();
+
 	WRITE_ONCE(task_thread_info(p)->cpu, cpu);
 #endif
 }
@@ -2531,7 +2532,7 @@ void wake_up_if_idle(int cpu)
 	raw_spin_lock_irqsave(&rq->lock, flags);
 	if (is_idle_task(rq->curr))
 		resched_curr(rq);
-	/* Else CPU is not idle, do nothing here: */
+	/* Else CPU is not idle, do nothing here */
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 
 out:
@@ -2951,9 +2952,9 @@ int task_call_func(struct task_struct *p, task_call_f func, void *arg)
 
 	/*
 	 * At this point the task is pinned; either:
-	 *  - blocked and we're holding off wakeups	 (pi->lock)
-	 *  - woken, and we're holding off enqueue	 (rq->lock)
-	 *  - queued, and we're holding off schedule	 (rq->lock)
+	 *  - blocked and we're holding off wakeups      (pi->lock)
+	 *  - woken, and we're holding off enqueue       (rq->lock)
+	 *  - queued, and we're holding off schedule     (rq->lock)
 	 *  - running, and we're holding off de-schedule (rq->lock)
 	 *
 	 * The called function (@func) can use: task_curr(), p->on_rq and
@@ -7602,9 +7603,9 @@ static void sched_free_group(struct task_group *tg)
 	kmem_cache_free(task_group_cache, tg);
 }
 
-static void sched_free_group_rcu(struct rcu_head *rcu)
+static void sched_free_group_rcu(struct rcu_head *rhp)
 {
-	sched_free_group(container_of(rcu, struct task_group, rcu));
+	sched_free_group(container_of(rhp, struct task_group, rcu));
 }
 
 static void sched_unregister_group(struct task_group *tg)
@@ -7635,13 +7636,13 @@ void sched_online_group(struct task_group *tg, struct task_group *parent)
 /* rcu callback to free various structures associated with a task group */
 static void sched_unregister_group_rcu(struct rcu_head *rhp)
 {
-	/* Now it should be safe to free those cfs_rqs */
+	/* Now it should be safe to free those cfs_rqs: */
 	sched_unregister_group(container_of(rhp, struct task_group, rcu));
 }
 
 void sched_destroy_group(struct task_group *tg)
 {
-	/* Wait for possible concurrent references to cfs_rqs complete */
+	/* Wait for possible concurrent references to cfs_rqs complete: */
 	call_rcu(&tg->rcu, sched_unregister_group_rcu);
 }
 
