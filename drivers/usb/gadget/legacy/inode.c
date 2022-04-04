@@ -2101,7 +2101,7 @@ MODULE_ALIAS_FS("gadgetfs");
 
 /*----------------------------------------------------------------------*/
 
-static int __init gadgetfs_init (void)
+static int __init init (void)
 {
 	int status;
 
@@ -2111,12 +2111,12 @@ static int __init gadgetfs_init (void)
 			shortname, driver_desc);
 	return status;
 }
-module_init (gadgetfs_init);
+module_init (init);
 
-static void __exit gadgetfs_cleanup (void)
+static void __exit cleanup (void)
 {
 	pr_debug ("unregister %s\n", shortname);
 	unregister_filesystem (&gadgetfs_type);
 }
-module_exit (gadgetfs_cleanup);
+module_exit (cleanup);
 
