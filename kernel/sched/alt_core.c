@@ -28,7 +28,6 @@
 #include <linux/kprobes.h>
 #include <linux/mmu_context.h>
 #include <linux/nmi.h>
-#include <linux/profile.h>
 #include <linux/rcupdate_wait.h>
 #include <linux/security.h>
 #include <linux/syscalls.h>
@@ -67,7 +66,7 @@ __read_mostly int sysctl_resched_latency_warn_once = 1;
 #define sched_feat(x)	(0)
 #endif /* CONFIG_SCHED_DEBUG */
 
-#define ALT_SCHED_VERSION "v5.16-r0-tm"
+#define ALT_SCHED_VERSION "v5.16-r1"
 
 /* rt_prio(prio) defined in include/linux/sched/rt.h */
 #define rt_task(p)		rt_prio((p)->prio)
@@ -147,7 +146,91 @@ DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 #ifdef CONFIG_SCHED_SMT
 static cpumask_t sched_sg_idle_mask ____cacheline_aligned_in_smp;
 #endif
-static cpumask_t sched_rq_watermark[SCHED_BITS] ____cacheline_aligned_in_smp;
+
+#define BITS_PER_ATOMIC_LONG_T BITS_PER_LONG
+typedef struct sched_bitmask {
+	atomic_long_t bits[DIV_ROUND_UP(SCHED_BITS, BITS_PER_ATOMIC_LONG_T)];
+} sched_bitmask_t;
+static sched_bitmask_t sched_rq_watermark[NR_CPUS] ____cacheline_aligned_in_smp;
+
+#define x(p, set, mask)                                \
+	do {                                           \
+		smp_mb__before_atomic();               \
+		if (set)                               \
+			atomic_long_or((mask), (p));   \
+		else                                   \
+			atomic_long_and(~(mask), (p)); \
+		smp_mb__after_atomic();                \
+	} while (0)
+
+static __always_inline void sched_rq_watermark_fill_downwards(int cpu, unsigned int end,
+		unsigned int start, bool set)
+{
+	unsigned int start_idx, start_bit;
+	unsigned int end_idx, end_bit;
+	atomic_long_t *p;
+
+	if (end == start) {
+		return;
+	}
+
+	start_idx = start / BITS_PER_ATOMIC_LONG_T;
+	start_bit = start % BITS_PER_ATOMIC_LONG_T;
+	end_idx = (end - 1) / BITS_PER_ATOMIC_LONG_T;
+	end_bit = (end - 1) % BITS_PER_ATOMIC_LONG_T;
+	p = &sched_rq_watermark[cpu].bits[end_idx];
+
+	if (end_idx == start_idx) {
+		x(p, set, (~0UL >> (BITS_PER_ATOMIC_LONG_T - 1 - end_bit)) & (~0UL << start_bit));
+		return;
+	}
+
+	if (end_bit != BITS_PER_ATOMIC_LONG_T - 1) {
+		x(p, set, (~0UL >> (BITS_PER_ATOMIC_LONG_T - 1 - end_bit)));
+		p -= 1;
+		end_idx -= 1;
+	}
+
+	while (end_idx != start_idx) {
+		smp_mb__before_atomic();
+		atomic_long_set(p, set ? ~0UL : 0);
+		smp_mb__after_atomic();
+		p -= 1;
+		end_idx -= 1;
+	}
+
+	x(p, set, ~0UL << start_bit);
+}
+
+#undef x
+
+static __always_inline bool sched_rq_watermark_and(cpumask_t *dstp, const cpumask_t *cpus, int prio, bool not)
+{
+	int cpu;
+	bool ret = false;
+	int idx = prio / BITS_PER_ATOMIC_LONG_T;
+	int bit = prio % BITS_PER_ATOMIC_LONG_T;
+
+	cpumask_clear(dstp);
+	for_each_cpu(cpu, cpus)
+		if (test_bit(bit, (long*)&sched_rq_watermark[cpu].bits[idx].counter) == !not) {
+			__cpumask_set_cpu(cpu, dstp);
+			ret = true;
+		}
+	return ret;
+}
+
+static __always_inline bool sched_rq_watermark_test(const cpumask_t *cpus, int prio, bool not)
+{
+	int cpu;
+	int idx = prio / BITS_PER_ATOMIC_LONG_T;
+	int bit = prio % BITS_PER_ATOMIC_LONG_T;
+
+	for_each_cpu(cpu, cpus)
+		if (test_bit(bit, (long*)&sched_rq_watermark[cpu].bits[idx].counter) == !not)
+			return true;
+	return false;
+}
 
 /* sched_queue related functions */
 static inline void sched_queue_init(struct sched_queue *q)
@@ -176,7 +259,6 @@ static inline void update_sched_rq_watermark(struct rq *rq)
 {
 	unsigned long watermark = find_first_bit(rq->queue.bitmap, SCHED_QUEUE_BITS);
 	unsigned long last_wm = rq->watermark;
-	unsigned long i;
 	int cpu;
 
 	if (watermark == last_wm)
@@ -185,28 +267,25 @@ static inline void update_sched_rq_watermark(struct rq *rq)
 	rq->watermark = watermark;
 	cpu = cpu_of(rq);
 	if (watermark < last_wm) {
-		for (i = last_wm - watermark; i > 0; i--)
-			cpumask_clear_cpu(cpu, sched_rq_watermark + SCHED_BITS - 1 - (i + watermark));
+		sched_rq_watermark_fill_downwards(cpu, SCHED_BITS - 1 - watermark, SCHED_BITS - 1 - last_wm, false);
 #ifdef CONFIG_SCHED_SMT
 		if (static_branch_likely(&sched_smt_present) &&
-		    IDLE_TASK_SCHED_PRIO == last_wm)
+		    unlikely(IDLE_TASK_SCHED_PRIO == last_wm))
 			cpumask_andnot(&sched_sg_idle_mask,
 				       &sched_sg_idle_mask, cpu_smt_mask(cpu));
 #endif
 		return;
 	}
 	/* last_wm < watermark */
-	for (i = watermark - last_wm; i > 0; i--)
-		cpumask_set_cpu(cpu, sched_rq_watermark + SCHED_BITS - 1 - (i + last_wm));
+	sched_rq_watermark_fill_downwards(cpu, SCHED_BITS - 1 - last_wm, SCHED_BITS - 1 - watermark, true);
 #ifdef CONFIG_SCHED_SMT
 	if (static_branch_likely(&sched_smt_present) &&
-	    IDLE_TASK_SCHED_PRIO == watermark) {
-		cpumask_t tmp;
+	    unlikely(IDLE_TASK_SCHED_PRIO == watermark)) {
+		const cpumask_t *smt_mask = cpu_smt_mask(cpu);
 
-		cpumask_and(&tmp, cpu_smt_mask(cpu), sched_rq_watermark);
-		if (cpumask_equal(&tmp, cpu_smt_mask(cpu)))
+		if (!sched_rq_watermark_test(smt_mask, 0, true))
 			cpumask_or(&sched_sg_idle_mask,
-				   &sched_sg_idle_mask, cpu_smt_mask(cpu));
+				   &sched_sg_idle_mask, smt_mask);
 	}
 #endif
 }
@@ -706,6 +785,25 @@ bool sched_task_on_rq(struct task_struct *p)
 	return task_on_rq_queued(p);
 }
 
+unsigned long get_wchan(struct task_struct *p)
+{
+	unsigned long ip = 0;
+	unsigned int state;
+
+	if (!p || p == current)
+		return 0;
+
+	/* Only get wchan if task is blocked and we can keep it that way. */
+	raw_spin_lock_irq(&p->pi_lock);
+	state = READ_ONCE(p->__state);
+	smp_rmb(); /* see try_to_wake_up() */
+	if (state != TASK_RUNNING && state != TASK_WAKING && !p->on_rq)
+		ip = __get_wchan(p);
+	raw_spin_unlock_irq(&p->pi_lock);
+
+	return ip;
+}
+
 /*
  * Add/Remove/Requeue task to/from the runqueue routines
  * Context: rq->lock
@@ -745,25 +843,6 @@ static inline void dequeue_task(struct task_struct *p, struct rq *rq, int flags)
 #endif
 
 	sched_update_tick_dependency(rq);
-}
-
-unsigned long get_wchan(struct task_struct *p)
-{
-	unsigned long ip = 0;
-	unsigned int state;
-
-	if (!p || p == current)
-		return 0;
-
-	/* Only get wchan if task is blocked and we can keep it that way. */
-	raw_spin_lock_irq(&p->pi_lock);
-	state = READ_ONCE(p->__state);
-	smp_rmb(); /* see try_to_wake_up() */
-	if (state != TASK_RUNNING && state != TASK_WAKING && !p->on_rq)
-		ip = __get_wchan(p);
-	raw_spin_unlock_irq(&p->pi_lock);
-
-	return ip;
 }
 
 static inline void enqueue_task(struct task_struct *p, struct rq *rq, int flags)
@@ -1333,6 +1412,7 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 	 * per-task data have been completed by this moment.
 	 */
 	smp_wmb();
+
 	WRITE_ONCE(task_thread_info(p)->cpu, cpu);
 #endif
 }
@@ -1905,9 +1985,9 @@ static inline int select_task_rq(struct task_struct *p)
 #ifdef CONFIG_SCHED_SMT
 	    cpumask_and(&tmp, &chk_mask, &sched_sg_idle_mask) ||
 #endif
-	    cpumask_and(&tmp, &chk_mask, sched_rq_watermark) ||
-	    cpumask_and(&tmp, &chk_mask,
-			sched_rq_watermark + SCHED_BITS - task_sched_prio(p)))
+	    sched_rq_watermark_and(&tmp, &chk_mask, 0, false) ||
+	    sched_rq_watermark_and(&tmp, &chk_mask,
+			SCHED_BITS - task_sched_prio(p) - 1, false))
 		return best_mask_cpu(task_cpu(p), &tmp);
 
 	return best_mask_cpu(task_cpu(p), &chk_mask);
@@ -2250,9 +2330,10 @@ ttwu_stat(struct task_struct *p, int cpu, int wake_flags)
 	rq = this_rq();
 
 #ifdef CONFIG_SMP
-	if (cpu == rq->cpu)
+	if (cpu == rq->cpu) {
 		__schedstat_inc(rq->ttwu_local);
-	else {
+		__schedstat_inc(p->stats.nr_wakeups_local);
+	} else {
 		/** Alt schedule FW ToDo:
 		 * How to do ttwu_wake_remote
 		 */
@@ -2260,6 +2341,7 @@ ttwu_stat(struct task_struct *p, int cpu, int wake_flags)
 #endif /* CONFIG_SMP */
 
 	__schedstat_inc(rq->ttwu_count);
+	__schedstat_inc(p->stats.nr_wakeups);
 }
 
 /*
@@ -2450,7 +2532,7 @@ void wake_up_if_idle(int cpu)
 	raw_spin_lock_irqsave(&rq->lock, flags);
 	if (is_idle_task(rq->curr))
 		resched_curr(rq);
-	/* Else CPU is not idle, do nothing here: */
+	/* Else CPU is not idle, do nothing here */
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 
 out:
@@ -2870,9 +2952,9 @@ int task_call_func(struct task_struct *p, task_call_f func, void *arg)
 
 	/*
 	 * At this point the task is pinned; either:
-	 *  - blocked and we're holding off wakeups	 (pi->lock)
-	 *  - woken, and we're holding off enqueue	 (rq->lock)
-	 *  - queued, and we're holding off schedule	 (rq->lock)
+	 *  - blocked and we're holding off wakeups      (pi->lock)
+	 *  - woken, and we're holding off enqueue       (rq->lock)
+	 *  - queued, and we're holding off schedule     (rq->lock)
 	 *  - running, and we're holding off de-schedule (rq->lock)
 	 *
 	 * The called function (@func) can use: task_curr(), p->on_rq and
@@ -2922,6 +3004,11 @@ static inline void __sched_fork(unsigned long clone_flags, struct task_struct *p
 	p->utime			= 0;
 	p->stime			= 0;
 	p->sched_time			= 0;
+
+#ifdef CONFIG_SCHEDSTATS
+	/* Even if schedstat is disabled, there should not be garbage */
+	memset(&p->stats, 0, sizeof(p->stats));
+#endif
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	INIT_HLIST_HEAD(&p->preempt_notifiers);
@@ -2977,6 +3064,9 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	if (unlikely(sched_info_on()))
 		memset(&p->sched_info, 0, sizeof(p->sched_info));
 #endif
+#if defined(CONFIG_SMP)
+	p->on_cpu = 0;
+#endif
 	init_task_preempt_count(p);
 
 	return 0;
@@ -2988,11 +3078,8 @@ void sched_cgroup_fork(struct task_struct *p, struct kernel_clone_args *kargs)
 	struct rq *rq;
 
 	/*
-	 * The child is not yet in the pid-hash so no cgroup attach races,
-	 * and the cgroup is pinned to this child due to cgroup_fork()
-	 * is ran before sched_fork().
-	 *
-	 * Silence PROVE_RCU.
+	 * Because we're not yet on the pid-hash, p->pi_lock isn't strictly
+	 * required yet, but lockdep gets upset if rules are violated.
 	 */
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
 	/*
@@ -3027,9 +3114,6 @@ void sched_cgroup_fork(struct task_struct *p, struct kernel_clone_args *kargs)
 
 void sched_post_fork(struct task_struct *p)
 {
-#ifdef CONFIG_UCLAMP_TASK
-	uclamp_post_fork(p);
-#endif
 }
 
 #ifdef CONFIG_SCHEDSTATS
@@ -3431,7 +3515,7 @@ static struct rq *finish_task_switch(struct task_struct *prev)
 {
 	struct rq *rq = this_rq();
 	struct mm_struct *mm = rq->prev_mm;
-	long prev_state;
+	unsigned int prev_state;
 
 	/*
 	 * The previous task will have left us with a preempt_count of 2
@@ -3958,7 +4042,7 @@ static inline void sg_balance_check(struct rq *rq)
 	 * find potential cpus which can migrate the current running task
 	 */
 	if (cpumask_test_cpu(cpu, &sched_sg_idle_mask) &&
-	    cpumask_andnot(&chk, cpu_online_mask, sched_rq_watermark) &&
+	    sched_rq_watermark_and(&chk, cpu_online_mask, 0, true) &&
 	    cpumask_andnot(&chk, &chk, &sched_rq_pending_mask)) {
 		int i;
 
@@ -4266,9 +4350,8 @@ static inline void schedule_debug(struct task_struct *prev, bool preempt)
 #ifdef ALT_SCHED_DEBUG
 void alt_sched_debug(void)
 {
-	printk(KERN_INFO "sched: pending: 0x%04lx, idle: 0x%04lx, sg_idle: 0x%04lx\n",
+	printk(KERN_INFO "sched: pending: 0x%04lx, sg_idle: 0x%04lx\n",
 	       sched_rq_pending_mask.bits[0],
-	       sched_rq_watermark[0].bits[0],
 	       sched_sg_idle_mask.bits[0]);
 }
 #else
@@ -4596,7 +4679,7 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 
 		psi_sched_switch(prev, next, !task_on_rq_queued(prev));
 
-		trace_sched_switch(sched_mode & SM_MASK_PREEMPT, prev, next);
+		trace_sched_switch(sched_mode & SM_MASK_PREEMPT, prev_state, prev, next);
 
 		/* Also unlocks the rq: */
 		rq = context_switch(rq, prev, next);
@@ -6213,9 +6296,7 @@ int __cond_resched_lock(spinlock_t *lock)
 
 	if (spin_needbreak(lock) || resched) {
 		spin_unlock(lock);
-		if (resched)
-			preempt_schedule_common();
-		else
+		if (!_cond_resched())
 			cpu_relax();
 		ret = 1;
 		spin_lock(lock);
@@ -6233,9 +6314,7 @@ int __cond_resched_rwlock_read(rwlock_t *lock)
 
 	if (rwlock_needbreak(lock) || resched) {
 		read_unlock(lock);
-		if (resched)
-			preempt_schedule_common();
-		else
+		if (!_cond_resched())
 			cpu_relax();
 		ret = 1;
 		read_lock(lock);
@@ -6253,9 +6332,7 @@ int __cond_resched_rwlock_write(rwlock_t *lock)
 
 	if (rwlock_needbreak(lock) || resched) {
 		write_unlock(lock);
-		if (resched)
-			preempt_schedule_common();
-		else
+		if (!_cond_resched())
 			cpu_relax();
 		ret = 1;
 		write_lock(lock);
@@ -7195,8 +7272,17 @@ void __init sched_init(void)
 	wait_bit_init();
 
 #ifdef CONFIG_SMP
-	for (i = 0; i < SCHED_BITS; i++)
-		cpumask_copy(sched_rq_watermark + i, cpu_present_mask);
+	for (i = 0; i < nr_cpu_ids; i++) {
+		long val = cpumask_test_cpu(i, cpu_present_mask) ? -1L : 0;
+		int j;
+		for (j = 0; j < DIV_ROUND_UP(SCHED_BITS, BITS_PER_ATOMIC_LONG_T); j++)
+			atomic_long_set(&sched_rq_watermark[i].bits[j], val);
+	}
+	for (i = nr_cpu_ids; i < NR_CPUS; i++) {
+		int j;
+		for (j = 0; j < DIV_ROUND_UP(SCHED_BITS, BITS_PER_ATOMIC_LONG_T); j++)
+			atomic_long_set(&sched_rq_watermark[i].bits[j], 0);
+	}
 #endif
 
 #ifdef CONFIG_CGROUP_SCHED
@@ -7271,12 +7357,6 @@ void __init sched_init(void)
 }
 
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
-static inline int preempt_count_equals(int preempt_offset)
-{
-	int nested = preempt_count() + rcu_preempt_depth();
-
-	return (nested == preempt_offset);
-}
 
 void __might_sleep(const char *file, int line)
 {
@@ -7296,7 +7376,28 @@ void __might_sleep(const char *file, int line)
 }
 EXPORT_SYMBOL(__might_sleep);
 
-void __might_resched(const char *file, int line, int preempt_offset)
+static void print_preempt_disable_ip(int preempt_offset, unsigned long ip)
+{
+	if (!IS_ENABLED(CONFIG_DEBUG_PREEMPT))
+		return;
+
+	if (preempt_count() == preempt_offset)
+		return;
+
+	pr_err("Preemption disabled at:");
+	print_ip_sym(KERN_ERR, ip);
+}
+
+static inline bool resched_offsets_ok(unsigned int offsets)
+{
+	unsigned int nested = preempt_count();
+
+	nested += rcu_preempt_depth() << MIGHT_RESCHED_RCU_SHIFT;
+
+	return nested == offsets;
+}
+
+void __might_resched(const char *file, int line, unsigned int offsets)
 {
 	/* Ratelimiting timestamp: */
 	static unsigned long prev_jiffy;
@@ -7306,7 +7407,7 @@ void __might_resched(const char *file, int line, int preempt_offset)
 	/* WARN_ON_ONCE() by default, no rate limit required: */
 	rcu_sleep_check();
 
-	if ((preempt_count_equals(preempt_offset) && !irqs_disabled() &&
+	if ((resched_offsets_ok(offsets) && !irqs_disabled() &&
 	     !is_idle_task(current) && !current->non_block_count) ||
 	    system_state == SYSTEM_BOOTING || system_state > SYSTEM_RUNNING ||
 	    oops_in_progress)
@@ -7323,6 +7424,13 @@ void __might_resched(const char *file, int line, int preempt_offset)
 	pr_err("in_atomic(): %d, irqs_disabled(): %d, non_block: %d, pid: %d, name: %s\n",
 	       in_atomic(), irqs_disabled(), current->non_block_count,
 	       current->pid, current->comm);
+	pr_err("preempt_count: %x, expected: %x\n", preempt_count(),
+	       offsets & MIGHT_RESCHED_PREEMPT_MASK);
+
+	if (IS_ENABLED(CONFIG_PREEMPT_RCU)) {
+		pr_err("RCU nest depth: %d, expected: %u\n",
+		       rcu_preempt_depth(), offsets >> MIGHT_RESCHED_RCU_SHIFT);
+	}
 
 	if (task_stack_end_corrupted(current))
 		pr_emerg("Thread overran stack, or stack corrupted\n");
@@ -7330,12 +7438,10 @@ void __might_resched(const char *file, int line, int preempt_offset)
 	debug_show_held_locks(current);
 	if (irqs_disabled())
 		print_irqtrace_events(current);
-#ifdef CONFIG_DEBUG_PREEMPT
-	if (!preempt_count_equals(preempt_offset)) {
-		pr_err("Preemption disabled at:");
-		print_ip_sym(KERN_ERR, preempt_disable_ip);
-	}
-#endif
+
+	print_preempt_disable_ip(offsets & MIGHT_RESCHED_PREEMPT_MASK,
+				 preempt_disable_ip);
+
 	dump_stack();
 	add_taint(TAINT_WARN, LOCKDEP_STILL_OK);
 }
@@ -7422,6 +7528,10 @@ void normalize_rt_tasks(void)
 		if (p->flags & PF_KTHREAD)
 			continue;
 
+		schedstat_set(p->stats.wait_start,  0);
+		schedstat_set(p->stats.sleep_start, 0);
+		schedstat_set(p->stats.block_start, 0);
+
 		if (!rt_task(p)) {
 			/*
 			 * Renice negative nice level userspace
@@ -7493,9 +7603,9 @@ static void sched_free_group(struct task_group *tg)
 	kmem_cache_free(task_group_cache, tg);
 }
 
-static void sched_free_group_rcu(struct rcu_head *rcu)
+static void sched_free_group_rcu(struct rcu_head *rhp)
 {
-	sched_free_group(container_of(rcu, struct task_group, rcu));
+	sched_free_group(container_of(rhp, struct task_group, rcu));
 }
 
 static void sched_unregister_group(struct task_group *tg)
@@ -7526,13 +7636,13 @@ void sched_online_group(struct task_group *tg, struct task_group *parent)
 /* rcu callback to free various structures associated with a task group */
 static void sched_unregister_group_rcu(struct rcu_head *rhp)
 {
-	/* Now it should be safe to free those cfs_rqs */
+	/* Now it should be safe to free those cfs_rqs: */
 	sched_unregister_group(container_of(rhp, struct task_group, rcu));
 }
 
 void sched_destroy_group(struct task_group *tg)
 {
-	/* Wait for possible concurrent references to cfs_rqs complete */
+	/* Wait for possible concurrent references to cfs_rqs complete: */
 	call_rcu(&tg->rcu, sched_unregister_group_rcu);
 }
 
