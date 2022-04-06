@@ -37,7 +37,7 @@
 	mcount_enter
 	ldr	r0, =ftrace_trace_function
 	ldr	r2, [r0]
-	badr	r0, .Lftrace_stub
+	adr	r0, .Lftrace_stub
 	cmp	r0, r2
 	bne	1f
 
