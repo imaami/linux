@@ -578,6 +578,13 @@ static inline u64 irq_time_read(int cpu)
 DECLARE_PER_CPU(struct update_util_data __rcu *, cpufreq_update_util_data);
 #endif /* CONFIG_CPU_FREQ */
 
+static inline
+unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
+				  struct task_struct *p)
+{
+	return util;
+}
+
 #ifdef CONFIG_NO_HZ_FULL
 extern int __init sched_tick_offload_init(void);
 #else
