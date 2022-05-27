@@ -18,10 +18,16 @@
 #include "cpufreq_ondemand.h"
 
 /* On-demand governor macros */
+#ifdef CONFIG_SCHED_PDS
+#define DEF_FREQUENCY_UP_THRESHOLD		(33)
+#define DEF_SAMPLING_DOWN_FACTOR		(2)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(40)
+#else
 #define DEF_FREQUENCY_UP_THRESHOLD		(80)
 #define DEF_SAMPLING_DOWN_FACTOR		(1)
-#define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_UP_THRESHOLD		(95)
+#endif
+#define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(1)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
@@ -129,8 +135,8 @@ static void dbs_freq_increase(struct cpufreq_policy *policy, unsigned int freq)
 }
 
 /*
- * Every sampling_rate, we check, if current idle time is less than 20%
- * (default), then we try to increase frequency. Else, we adjust the frequency
+ * Every sampling_rate, we check, if current idle time is less than 20% (67%
+ * with PDS), then we try to increase frequency. Else, we adjust the frequency
  * proportional to load.
  */
 static void od_update(struct cpufreq_policy *policy)
