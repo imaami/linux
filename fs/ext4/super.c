@@ -1913,6 +1913,7 @@ static const struct mount_opts {
 	 MOPT_EXT4_ONLY | MOPT_CLEAR},
 	{Opt_warn_on_error, EXT4_MOUNT_WARN_ON_ERROR, MOPT_SET},
 	{Opt_nowarn_on_error, EXT4_MOUNT_WARN_ON_ERROR, MOPT_CLEAR},
+	{Opt_commit, 0, MOPT_NO_EXT2},
 	{Opt_nojournal_checksum, EXT4_MOUNT_JOURNAL_CHECKSUM,
 	 MOPT_EXT4_ONLY | MOPT_CLEAR},
 	{Opt_journal_checksum, EXT4_MOUNT_JOURNAL_CHECKSUM,
@@ -2625,8 +2626,10 @@ parse_failed:
 	ret = ext4_apply_options(fc, sb);
 
 out_free:
-	kfree(s_ctx);
-	kfree(fc);
+	if (fc) {
+		ext4_fc_free(fc);
+		kfree(fc);
+	}
 	kfree(s_mount_opts);
 	return ret;
 }
@@ -4409,7 +4412,8 @@ static int __ext4_fill_super(struct fs_context *fc, struct super_block *sb)
 	int silent = fc->sb_flags & SB_SILENT;
 
 	/* Set defaults for the variables that will be set during parsing */
-	ctx->journal_ioprio = DEFAULT_JOURNAL_IOPRIO;
+	if (!(ctx->spec & EXT4_SPEC_JOURNAL_IOPRIO))
+		ctx->journal_ioprio = DEFAULT_JOURNAL_IOPRIO;
 
 	sbi->s_inode_readahead_blks = EXT4_DEF_INODE_READAHEAD_BLKS;
 	sbi->s_sectors_written_start =
@@ -4886,7 +4890,7 @@ static int __ext4_fill_super(struct fs_context *fc, struct super_block *sb)
 					sbi->s_inodes_per_block;
 	sbi->s_desc_per_block = blocksize / EXT4_DESC_SIZE(sb);
 	sbi->s_sbh = bh;
-	sbi->s_mount_state = le16_to_cpu(es->s_state);
+	sbi->s_mount_state = le16_to_cpu(es->s_state) & ~EXT4_FC_REPLAY;
 	sbi->s_addr_per_block_bits = ilog2(EXT4_ADDR_PER_BLOCK(sb));
 	sbi->s_desc_per_block_bits = ilog2(EXT4_DESC_PER_BLOCK(sb));
 
@@ -6276,7 +6280,6 @@ static int __ext4_remount(struct fs_context *fc, struct super_block *sb)
 	char *to_free[EXT4_MAXQUOTAS];
 #endif
 
-	ctx->journal_ioprio = DEFAULT_JOURNAL_IOPRIO;
 
 	/* Store the original options */
 	old_sb_flags = sb->s_flags;
@@ -6302,9 +6305,14 @@ static int __ext4_remount(struct fs_context *fc, struct super_block *sb)
 		} else
 			old_opts.s_qf_names[i] = NULL;
 #endif
-	if (sbi->s_journal && sbi->s_journal->j_task->io_context)
-		ctx->journal_ioprio =
-			sbi->s_journal->j_task->io_context->ioprio;
+	if (!(ctx->spec & EXT4_SPEC_JOURNAL_IOPRIO)) {
+		if (sbi->s_journal && sbi->s_journal->j_task->io_context)
+			ctx->journal_ioprio =
+				sbi->s_journal->j_task->io_context->ioprio;
+		else
+			ctx->journal_ioprio = DEFAULT_JOURNAL_IOPRIO;
+
+	}
 
 	ext4_apply_options(fc, sb);
 
@@ -6445,7 +6453,8 @@ static int __ext4_remount(struct fs_context *fc, struct super_block *sb)
 				if (err)
 					goto restore_opts;
 			}
-			sbi->s_mount_state = le16_to_cpu(es->s_state);
+			sbi->s_mount_state = (le16_to_cpu(es->s_state) &
+					      ~EXT4_FC_REPLAY);
 
 			err = ext4_setup_super(sb, es, 0);
 			if (err)
