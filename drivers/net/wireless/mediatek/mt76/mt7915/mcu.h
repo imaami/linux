@@ -414,23 +414,11 @@ struct bss_info_bcn_cont {
 	__le16 pkt_len;
 } __packed __aligned(4);
 
-struct bss_info_inband_discovery {
-	__le16 tag;
-	__le16 len;
-	u8 tx_type;
-	u8 tx_mode;
-	u8 tx_interval;
-	u8 enable;
-	__le16 rsv;
-	__le16 prob_rsp_len;
-} __packed __aligned(4);
-
 enum {
 	BSS_INFO_BCN_CSA,
 	BSS_INFO_BCN_BCC,
 	BSS_INFO_BCN_MBSSID,
 	BSS_INFO_BCN_CONTENT,
-	BSS_INFO_BCN_DISCOV,
 	BSS_INFO_BCN_MAX
 };
 
@@ -498,7 +486,6 @@ enum {
 #define MT7915_BEACON_UPDATE_SIZE	(sizeof(struct sta_req_hdr) +	\
 					 sizeof(struct bss_info_bcn_cntdwn) + \
 					 sizeof(struct bss_info_bcn_mbss) + \
-					 sizeof(struct bss_info_bcn_cont) + \
-					 sizeof(struct bss_info_inband_discovery))
+					 sizeof(struct bss_info_bcn_cont))
 
 #endif
