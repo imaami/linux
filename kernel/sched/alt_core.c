@@ -111,7 +111,7 @@ early_param("sched_timeslice", sched_timeslice);
  * 1: Deboost and requeue task. (default)
  * 2: Set rq skip task.
  */
-int sched_yield_type __read_mostly = 1;
+int sched_yield_type __read_mostly = 0;
 
 #ifdef CONFIG_SMP
 static cpumask_t sched_rq_pending_mask ____cacheline_aligned_in_smp;
