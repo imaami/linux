@@ -42,17 +42,16 @@
 enum kinds { nct6683, nct6686, nct6687 };
 
 static bool force;
-
 module_param(force, bool, 0);
 MODULE_PARM_DESC(force, "Set to one to enable support for unknown vendors");
 
-static const char *const nct6683_device_names[] = {
+static const char * const nct6683_device_names[] = {
 	"nct6683",
 	"nct6686",
 	"nct6687",
 };
 
-static const char *const nct6683_chip_names[] = {
+static const char * const nct6683_chip_names[] = {
 	"NCT6683D",
 	"NCT6686D",
 	"NCT6687D",
@@ -64,14 +63,14 @@ static const char *const nct6683_chip_names[] = {
  * Super-I/O constants and functions
  */
 
-#define NCT6683_LD_ACPI 0x0a
-#define NCT6683_LD_HWM 0x0b
-#define NCT6683_LD_VID 0x0d
+#define NCT6683_LD_ACPI		0x0a
+#define NCT6683_LD_HWM		0x0b
+#define NCT6683_LD_VID		0x0d
 
-#define SIO_REG_LDSEL 0x07		 /* Logical device select */
-#define SIO_REG_DEVID 0x20		 /* Device ID (2 bytes) */
-#define SIO_REG_ENABLE 0x30		 /* Logical device enable */
-#define SIO_REG_ADDR 0x60		 /* Logical device address (2 bytes) */
+#define SIO_REG_LDSEL		0x07	/* Logical device select */
+#define SIO_REG_DEVID		0x20	/* Device ID (2 bytes) */
+#define SIO_REG_ENABLE		0x30	/* Logical device enable */
+#define SIO_REG_ADDR		0x60	/* Logical device address (2 bytes) */
 
 #define SIO_NCT6683D_ID 0xc732
 #define SIO_NCT6687_ID 0xd451 // 0xd592
@@ -119,7 +118,6 @@ superio_exit(int ioreg)
 	outb(0xaa, ioreg);
 	outb(0x02, ioreg);
 	outb(0x02, ioreg + 1);
-
 	release_region(ioreg, 2);
 }
 
@@ -127,8 +125,8 @@ superio_exit(int ioreg)
  * ISA constants
  */
 
-#define IOREGION_OFFSET 0 /* Use EC port 1 */
-#define IOREGION_LENGTH 4
+#define IOREGION_OFFSET		0	/* Use EC port 1 */
+#define IOREGION_LENGTH		4
 
 /* Common and NCT6683 specific data */
 
@@ -299,18 +297,18 @@ static const char *const nct6683_fan_label[] = {
 };
 
 /* ------------------------------------------------------- */
-struct nct6683_data
-{
-	int addr;	/* IO base of EC space */
-	int sioreg; /* SIO register */
+struct nct6683_data {
+	int addr;		/* IO base of EC space */
+	int sioreg;		/* SIO register */
 	enum kinds kind;
+	u16 customer_id;
 
 	struct device *hwmon_dev;
 	const struct attribute_group *groups[6];
 
 	struct mutex update_lock;	/* used to protect sensor updates */
-	bool valid;					/* true if following fields are valid */
-	unsigned long last_updated; /* In jiffies */
+	bool valid;			/* true if following fields are valid */
+	unsigned long last_updated;	/* In jiffies */
 
 	/* Voltage values */
 	s16 voltage[3][NCT6683_NUM_REG_VOLTAGE]; // 0 = current 1 = min 2 = max
@@ -323,7 +321,9 @@ struct nct6683_data
 	u8 _initialFanControlMode[NCT6683_NUM_REG_FAN];
 	u8 _initialFanPwmCommand[NCT6683_NUM_REG_FAN];
 	bool _restoreDefaultFanControlRequired[NCT6683_NUM_REG_FAN];
+	u16 have_fan;			/* some fan inputs can be disabled */
 
+	u8 have_pwm;
 	u8 pwm[NCT6683_NUM_REG_PWM];
 
 #ifdef CONFIG_PM
@@ -332,31 +332,25 @@ struct nct6683_data
 #endif
 };
 
-struct nct6683_sio_data
-{
+struct nct6683_sio_data {
 	int sioreg;
 	enum kinds kind;
 };
 
-struct sensor_device_template
-{
+struct sensor_device_template {
 	struct device_attribute dev_attr;
-	union
-	{
-		struct
-		{
+	union {
+		struct {
 			u8 nr;
 			u8 index;
 		} s;
 		int index;
 	} u;
-	bool s2; /* true if both index and nr are used */
+	bool s2;	/* true if both index and nr are used */
 };
 
-struct sensor_device_attr_u
-{
-	union
-	{
+struct sensor_device_attr_u {
+	union {
 		struct sensor_device_attribute a1;
 		struct sensor_device_attribute_2 a2;
 	} u;
