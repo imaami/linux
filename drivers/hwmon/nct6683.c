@@ -165,6 +165,7 @@ superio_exit(int ioreg)
 
 #define NCT6683_REG_FAN_MIN(x)		(0x3b8 + (x) * 2)	/* 16 bit */
 
+#define NCT6683_REG_FAN_CTRL_MODE	0xa00
 #define NCT6683_REG_FAN_CFG_CTRL	0xa01
 #define NCT6683_FAN_CFG_REQ		0x80
 #define NCT6683_FAN_CFG_DONE		0x40
@@ -173,6 +174,7 @@ superio_exit(int ioreg)
 #define NCT6683_CUSTOMER_ID_INTEL	0x805
 #define NCT6683_CUSTOMER_ID_MITAC	0xa0e
 #define NCT6683_CUSTOMER_ID_MSI		0x201
+#define NCT6683_CUSTOMER_ID_MSI2	0x202
 #define NCT6683_CUSTOMER_ID_ASROCK		0xe2c
 #define NCT6683_CUSTOMER_ID_ASROCK2	0xe1b
 
@@ -924,16 +926,27 @@ store_pwm(struct device *dev, struct device_attribute *attr, const char *buf,
 	struct sensor_device_attribute_2 *sattr = to_sensor_dev_attr_2(attr);
 	struct nct6683_data *data = dev_get_drvdata(dev);
 	int index = sattr->index;
-	unsigned long val;
+	u16 mode, flag;
+	long val;
 
-	if (kstrtoul(buf, 10, &val) || val > 255)
+	if (kstrtol(buf, 10, &val) || val < -1 || val > 255)
 		return -EINVAL;
 
+	flag = 1u << index;
+
 	mutex_lock(&data->update_lock);
+
 	nct6683_write(data, NCT6683_REG_FAN_CFG_CTRL, NCT6683_FAN_CFG_REQ);
 	usleep_range(1000, 2000);
-	nct6683_write(data, NCT6683_REG_PWM_WRITE(index), val);
+	nct6683_write(data, NCT6683_REG_PWM_WRITE(index), (u8)(val & 0xff));
 	nct6683_write(data, NCT6683_REG_FAN_CFG_CTRL, NCT6683_FAN_CFG_DONE);
+
+	mode = nct6683_read(data, NCT6683_REG_FAN_CTRL_MODE);
+	if (val == -1)
+		nct6683_write(data, NCT6683_REG_FAN_CTRL_MODE, mode & ~flag);
+	else
+		nct6683_write(data, NCT6683_REG_FAN_CTRL_MODE, mode | flag);
+
 	mutex_unlock(&data->update_lock);
 
 	return count;
@@ -951,8 +964,8 @@ static umode_t nct6683_pwm_is_visible(struct kobject *kobj,
 	if (!(data->have_pwm & (1 << pwm)))
 		return 0;
 
-	/* Only update pwm values for Mitac boards */
-	if (data->customer_id == NCT6683_CUSTOMER_ID_MITAC)
+	/* Only update pwm values for non-Intel boards */
+	if (data->customer_id != NCT6683_CUSTOMER_ID_INTEL)
 		return attr->mode | S_IWUSR;
 
 	return attr->mode;
@@ -1219,6 +1232,8 @@ static int nct6683_probe(struct platform_device *pdev)
 	case NCT6683_CUSTOMER_ID_MITAC:
 		break;
 	case NCT6683_CUSTOMER_ID_MSI:
+		break;
+	case NCT6683_CUSTOMER_ID_MSI2:
 		break;
 	case NCT6683_CUSTOMER_ID_ASROCK:
 		break;
