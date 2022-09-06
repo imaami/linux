@@ -296,14 +296,6 @@ static void dwc3_qcom_interconnect_exit(struct dwc3_qcom *qcom)
 	icc_put(qcom->icc_path_apps);
 }
 
-/* Only usable in contexts where the role can not change. */
-static bool dwc3_qcom_is_host(struct dwc3_qcom *qcom)
-{
-	struct dwc3 *dwc = platform_get_drvdata(qcom->dwc3);
-
-	return dwc->xhci;
-}
-
 static void dwc3_qcom_enable_wakeup_irq(int irq)
 {
 	if (!irq)
@@ -413,11 +405,7 @@ static irqreturn_t qcom_dwc3_resume_irq(int irq, void *data)
 	if (qcom->pm_suspended)
 		return IRQ_HANDLED;
 
-	/*
-	 * This is safe as role switching is done from a freezable workqueue
-	 * and the wakeup interrupts are disabled as part of resume.
-	 */
-	if (dwc3_qcom_is_host(qcom))
+	if (dwc->xhci)
 		pm_runtime_resume(&dwc->xhci->dev);
 
 	return IRQ_HANDLED;
