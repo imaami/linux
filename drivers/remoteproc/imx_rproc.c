@@ -646,6 +646,7 @@ static int imx_rproc_xtr_mbox_init(struct rproc *rproc)
 	struct imx_rproc *priv = rproc->priv;
 	struct device *dev = priv->dev;
 	struct mbox_client *cl;
+	int ret;
 
 	if (!of_get_property(dev->of_node, "mbox-names", NULL))
 		return 0;
@@ -658,15 +659,18 @@ static int imx_rproc_xtr_mbox_init(struct rproc *rproc)
 	cl->rx_callback = imx_rproc_rx_callback;
 
 	priv->tx_ch = mbox_request_channel_byname(cl, "tx");
-	if (IS_ERR(priv->tx_ch))
-		return dev_err_probe(cl->dev, PTR_ERR(priv->tx_ch),
-				     "failed to request tx mailbox channel\n");
+	if (IS_ERR(priv->tx_ch)) {
+		ret = PTR_ERR(priv->tx_ch);
+		return dev_err_probe(cl->dev, ret,
+				     "failed to request tx mailbox channel: %d\n", ret);
+	}
 
 	priv->rx_ch = mbox_request_channel_byname(cl, "rx");
 	if (IS_ERR(priv->rx_ch)) {
 		mbox_free_channel(priv->tx_ch);
-		return dev_err_probe(cl->dev, PTR_ERR(priv->rx_ch),
-				     "failed to request rx mailbox channel\n");
+		ret = PTR_ERR(priv->rx_ch);
+		return dev_err_probe(cl->dev, ret,
+				     "failed to request rx mailbox channel: %d\n", ret);
 	}
 
 	return 0;
