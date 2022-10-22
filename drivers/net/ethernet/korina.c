@@ -416,8 +416,7 @@ static void korina_abort_rx(struct net_device *dev)
 }
 
 /* transmit packet */
-static netdev_tx_t korina_send_packet(struct sk_buff *skb,
-				      struct net_device *dev)
+static int korina_send_packet(struct sk_buff *skb, struct net_device *dev)
 {
 	struct korina_private *lp = netdev_priv(dev);
 	u32 chain_prev, chain_next;
