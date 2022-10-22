@@ -3909,19 +3909,20 @@ static struct srp_host *srp_add_port(struct srp_device *device, u8 port)
 		     port);
 
 	if (device_register(&host->dev))
-		goto put_host;
+		goto free_host;
 	if (device_create_file(&host->dev, &dev_attr_add_target))
-		goto put_host;
+		goto err_class;
 	if (device_create_file(&host->dev, &dev_attr_ibdev))
-		goto put_host;
+		goto err_class;
 	if (device_create_file(&host->dev, &dev_attr_port))
-		goto put_host;
+		goto err_class;
 
 	return host;
 
-put_host:
-	device_del(&host->dev);
-	put_device(&host->dev);
+err_class:
+	device_unregister(&host->dev);
+
+free_host:
 	kfree(host);
 
 	return NULL;
