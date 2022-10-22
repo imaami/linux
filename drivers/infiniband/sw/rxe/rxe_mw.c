@@ -33,8 +33,6 @@ int rxe_alloc_mw(struct ib_mw *ibmw, struct ib_udata *udata)
 			RXE_MW_STATE_FREE : RXE_MW_STATE_VALID;
 	spin_lock_init(&mw->lock);
 
-	rxe_finalize(mw);
-
 	return 0;
 }
 
@@ -42,7 +40,7 @@ int rxe_dealloc_mw(struct ib_mw *ibmw)
 {
 	struct rxe_mw *mw = to_rmw(ibmw);
 
-	rxe_cleanup(mw);
+	rxe_put(mw);
 
 	return 0;
 }

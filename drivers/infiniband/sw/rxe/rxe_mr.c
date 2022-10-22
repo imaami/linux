@@ -619,7 +619,7 @@ int rxe_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 	if (atomic_read(&mr->num_mw) > 0)
 		return -EINVAL;
 
-	rxe_cleanup(mr);
+	rxe_put(mr);
 
 	return 0;
 }
