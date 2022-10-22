@@ -223,7 +223,7 @@
 	gpio-reserved-ranges = <44 4>;
 
 	ts_int_default: ts-int-default {
-		pins = "gpio23";
+		pin = "gpio23";
 		function = "gpio";
 		drive-strength = <2>;
 		bias-disable;
