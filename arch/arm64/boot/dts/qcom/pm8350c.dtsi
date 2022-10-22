@@ -30,8 +30,9 @@
 			#interrupt-cells = <2>;
 		};
 
-		pm8350c_pwm: pwm {
+		pm8350c_pwm: pwm@e800 {
 			compatible = "qcom,pm8350c-pwm";
+			reg = <0xe800>;
 			#pwm-cells = <2>;
 			status = "disabled";
 		};
