@@ -60,8 +60,9 @@
 			#interrupt-cells = <2>;
 		};
 
-		pmc8280c_lpg: pwm {
+		pmc8280c_lpg: lpg@e800 {
 			compatible = "qcom,pm8350c-pwm";
+			reg = <0xe800>;
 
 			#address-cells = <1>;
 			#size-cells = <0>;
