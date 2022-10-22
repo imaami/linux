@@ -149,25 +149,6 @@ offline_cpu_expect_fail()
 	fi
 }
 
-online_all_hot_pluggable_cpus()
-{
-	for cpu in `hotplaggable_offline_cpus`; do
-		online_cpu_expect_success $cpu
-	done
-}
-
-offline_all_hot_pluggable_cpus()
-{
-	local reserve_cpu=$online_max
-	for cpu in `hotpluggable_online_cpus`; do
-		# Reserve one cpu oneline at least.
-		if [ $cpu -eq $reserve_cpu ];then
-			continue
-		fi
-		offline_cpu_expect_success $cpu
-	done
-}
-
 allcpus=0
 online_cpus=0
 online_max=0
@@ -216,10 +197,25 @@ else
 	echo -e "\t online all offline cpus"
 fi
 
-online_all_hot_pluggable_cpus
+#
+# Online all hot-pluggable CPUs
+#
+for cpu in `hotplaggable_offline_cpus`; do
+	online_cpu_expect_success $cpu
+done
 
-offline_all_hot_pluggable_cpus
+#
+# Offline all hot-pluggable CPUs
+#
+for cpu in `hotpluggable_online_cpus`; do
+	offline_cpu_expect_success $cpu
+done
 
-online_all_hot_pluggable_cpus
+#
+# Online all hot-pluggable CPUs again
+#
+for cpu in `hotplaggable_offline_cpus`; do
+	online_cpu_expect_success $cpu
+done
 
 exit $retval
