@@ -38,6 +38,9 @@
 #include "irq.h"
 #include "fpu.h"
 
+/* "Hv#1" signature */
+#define HYPERV_CPUID_SIGNATURE_EAX 0x31237648
+
 #define KVM_HV_MAX_SPARSE_VCPU_SET_BITS DIV_ROUND_UP(KVM_MAX_VCPUS, 64)
 
 static void stimer_mark_pending(struct kvm_vcpu_hv_stimer *stimer,
@@ -931,7 +934,7 @@ static void stimer_init(struct kvm_vcpu_hv_stimer *stimer, int timer_index)
 	stimer_prepare_msg(stimer);
 }
 
-int kvm_hv_vcpu_init(struct kvm_vcpu *vcpu)
+static int kvm_hv_vcpu_init(struct kvm_vcpu *vcpu)
 {
 	struct kvm_vcpu_hv *hv_vcpu = to_hv_vcpu(vcpu);
 	int i;
@@ -1981,26 +1984,25 @@ ret_success:
 	return HV_STATUS_SUCCESS;
 }
 
-void kvm_hv_set_cpuid(struct kvm_vcpu *vcpu, bool hyperv_enabled)
+void kvm_hv_set_cpuid(struct kvm_vcpu *vcpu)
 {
-	struct kvm_vcpu_hv *hv_vcpu = to_hv_vcpu(vcpu);
 	struct kvm_cpuid_entry2 *entry;
+	struct kvm_vcpu_hv *hv_vcpu;
 
-	vcpu->arch.hyperv_enabled = hyperv_enabled;
-
-	if (!hv_vcpu) {
-		/*
-		 * KVM should have already allocated kvm_vcpu_hv if Hyper-V is
-		 * enabled in CPUID.
-		 */
-		WARN_ON_ONCE(vcpu->arch.hyperv_enabled);
+	entry = kvm_find_cpuid_entry(vcpu, HYPERV_CPUID_INTERFACE);
+	if (entry && entry->eax == HYPERV_CPUID_SIGNATURE_EAX) {
+		vcpu->arch.hyperv_enabled = true;
+	} else {
+		vcpu->arch.hyperv_enabled = false;
 		return;
 	}
 
-	memset(&hv_vcpu->cpuid_cache, 0, sizeof(hv_vcpu->cpuid_cache));
-
-	if (!vcpu->arch.hyperv_enabled)
+	if (kvm_hv_vcpu_init(vcpu))
 		return;
+
+	hv_vcpu = to_hv_vcpu(vcpu);
+
+	memset(&hv_vcpu->cpuid_cache, 0, sizeof(hv_vcpu->cpuid_cache));
 
 	entry = kvm_find_cpuid_entry(vcpu, HYPERV_CPUID_FEATURES);
 	if (entry) {
