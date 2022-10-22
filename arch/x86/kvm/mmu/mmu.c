@@ -6292,12 +6292,10 @@ int kvm_mmu_vendor_module_init(void)
 
 	ret = register_shrinker(&mmu_shrinker);
 	if (ret)
-		goto out_shrinker;
+		goto out;
 
 	return 0;
 
-out_shrinker:
-	percpu_counter_destroy(&kvm_total_used_mmu_pages);
 out:
 	mmu_destroy_caches();
 	return ret;
