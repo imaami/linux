@@ -114,7 +114,8 @@ static void hda_codec_device_exit(struct device *dev)
 	snd_hdac_device_exit(dev_to_hdac_dev(dev));
 }
 
-static struct hda_codec *hda_codec_device_init(struct hdac_bus *bus, int addr, int type)
+static __maybe_unused struct hda_codec *
+hda_codec_device_init(struct hdac_bus *bus, int addr, int type)
 {
 	struct hda_codec *codec;
 	int ret;
@@ -144,10 +145,11 @@ static int hda_codec_probe(struct snd_sof_dev *sdev, int address,
 {
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC)
 	struct hdac_hda_priv *hda_priv;
+	struct hda_codec *codec;
 	int type = HDA_DEV_LEGACY;
 #endif
 	struct hda_bus *hbus = sof_to_hbus(sdev);
-	struct hda_codec *codec;
+	struct hdac_device *hdev;
 	u32 hda_cmd = (address << 28) | (AC_NODE_ROOT << 20) |
 		(AC_VERB_PARAMETERS << 8) | AC_PAR_VENDOR_ID;
 	u32 resp = -1;
@@ -170,20 +172,20 @@ static int hda_codec_probe(struct snd_sof_dev *sdev, int address,
 	if (!hda_priv)
 		return -ENOMEM;
 
+	hda_priv->codec.bus = hbus;
+	hdev = &hda_priv->codec.core;
+	codec = &hda_priv->codec;
+
 	/* only probe ASoC codec drivers for HDAC-HDMI */
 	if (!hda_codec_use_common_hdmi && (resp & 0xFFFF0000) == IDISP_VID_INTEL)
 		type = HDA_DEV_ASOC;
 
-	codec = hda_codec_device_init(&hbus->core, address, type);
-	ret = PTR_ERR_OR_ZERO(codec);
+	ret = snd_hdac_ext_bus_device_init(&hbus->core, address, hdev, type);
 	if (ret < 0)
 		return ret;
 
-	hda_priv->codec = codec;
-	dev_set_drvdata(&codec->core.dev, hda_priv);
-
 	if ((resp & 0xFFFF0000) == IDISP_VID_INTEL) {
-		if (!hbus->core.audio_component) {
+		if (!hdev->bus->audio_component) {
 			dev_dbg(sdev->dev,
 				"iDisp hw present but no driver\n");
 			ret = -ENOENT;
@@ -209,12 +211,15 @@ static int hda_codec_probe(struct snd_sof_dev *sdev, int address,
 
 out:
 	if (ret < 0) {
-		snd_hdac_device_unregister(&codec->core);
-		put_device(&codec->core.dev);
+		snd_hdac_device_unregister(hdev);
+		put_device(&hdev->dev);
 	}
 #else
-	codec = hda_codec_device_init(&hbus->core, address);
-	ret = PTR_ERR_OR_ZERO(codec);
+	hdev = devm_kzalloc(sdev->dev, sizeof(*hdev), GFP_KERNEL);
+	if (!hdev)
+		return -ENOMEM;
+
+	ret = snd_hdac_ext_bus_device_init(&hbus->core, address, hdev, HDA_DEV_ASOC);
 #endif
 
 	return ret;
