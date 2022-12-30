@@ -155,7 +155,6 @@ struct gendisk {
 	unsigned open_partitions;	/* number of open partitions */
 
 	struct backing_dev_info	*bdi;
-	struct kobject queue_kobj;	/* the queue/ directory */
 	struct kobject *slave_dir;
 #ifdef CONFIG_BLOCK_HOLDER_DEPRECATED
 	struct list_head slave_bdevs;
@@ -438,7 +437,10 @@ struct request_queue {
 
 	struct gendisk		*disk;
 
-	refcount_t		refs;
+	/*
+	 * queue kobject
+	 */
+	struct kobject kobj;
 
 	/*
 	 * mq queue kobject

@@ -499,7 +499,7 @@ int elv_register_queue(struct request_queue *q, bool uevent)
 
 	lockdep_assert_held(&q->sysfs_lock);
 
-	error = kobject_add(&e->kobj, &q->disk->queue_kobj, "iosched");
+	error = kobject_add(&e->kobj, &q->kobj, "%s", "iosched");
 	if (!error) {
 		struct elv_fs_entry *attr = e->type->elevator_attrs;
 		if (attr) {

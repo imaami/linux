@@ -680,8 +680,8 @@ static struct attribute *queue_attrs[] = {
 static umode_t queue_attr_visible(struct kobject *kobj, struct attribute *attr,
 				int n)
 {
-	struct gendisk *disk = container_of(kobj, struct gendisk, queue_kobj);
-	struct request_queue *q = disk->queue;
+	struct request_queue *q =
+		container_of(kobj, struct request_queue, kobj);
 
 	if (attr == &queue_io_timeout_entry.attr &&
 		(!q->mq_ops || !q->mq_ops->timeout))
@@ -707,8 +707,8 @@ static ssize_t
 queue_attr_show(struct kobject *kobj, struct attribute *attr, char *page)
 {
 	struct queue_sysfs_entry *entry = to_queue(attr);
-	struct gendisk *disk = container_of(kobj, struct gendisk, queue_kobj);
-	struct request_queue *q = disk->queue;
+	struct request_queue *q =
+		container_of(kobj, struct request_queue, kobj);
 	ssize_t res;
 
 	if (!entry->show)
@@ -724,17 +724,61 @@ queue_attr_store(struct kobject *kobj, struct attribute *attr,
 		    const char *page, size_t length)
 {
 	struct queue_sysfs_entry *entry = to_queue(attr);
-	struct gendisk *disk = container_of(kobj, struct gendisk, queue_kobj);
-	struct request_queue *q = disk->queue;
+	struct request_queue *q;
 	ssize_t res;
 
 	if (!entry->store)
 		return -EIO;
 
+	q = container_of(kobj, struct request_queue, kobj);
 	mutex_lock(&q->sysfs_lock);
 	res = entry->store(q, page, length);
 	mutex_unlock(&q->sysfs_lock);
 	return res;
+}
+
+static void blk_free_queue_rcu(struct rcu_head *rcu_head)
+{
+	kmem_cache_free(blk_requestq_cachep,
+			container_of(rcu_head, struct request_queue, rcu_head));
+}
+
+/**
+ * blk_release_queue - releases all allocated resources of the request_queue
+ * @kobj: pointer to a kobject, whose container is a request_queue
+ *
+ * This function releases all allocated resources of the request queue.
+ *
+ * The struct request_queue refcount is incremented with blk_get_queue() and
+ * decremented with blk_put_queue(). Once the refcount reaches 0 this function
+ * is called.
+ *
+ * Drivers exist which depend on the release of the request_queue to be
+ * synchronous, it should not be deferred.
+ *
+ * Context: can sleep
+ */
+static void blk_release_queue(struct kobject *kobj)
+{
+	struct request_queue *q =
+		container_of(kobj, struct request_queue, kobj);
+
+	might_sleep();
+
+	percpu_ref_exit(&q->q_usage_counter);
+
+	if (q->poll_stat)
+		blk_stat_remove_callback(q, q->poll_cb);
+	blk_stat_free_callback(q->poll_cb);
+
+	blk_free_queue_stats(q->stats);
+	kfree(q->poll_stat);
+
+	if (queue_is_mq(q))
+		blk_mq_release(q);
+
+	ida_free(&blk_queue_ida, q->id);
+	call_rcu(&q->rcu_head, blk_free_queue_rcu);
 }
 
 static const struct sysfs_ops queue_sysfs_ops = {
@@ -747,15 +791,10 @@ static const struct attribute_group *blk_queue_attr_groups[] = {
 	NULL
 };
 
-static void blk_queue_release(struct kobject *kobj)
-{
-	/* nothing to do here, all data is associated with the parent gendisk */
-}
-
-static struct kobj_type blk_queue_ktype = {
+struct kobj_type blk_queue_ktype = {
 	.default_groups = blk_queue_attr_groups,
 	.sysfs_ops	= &queue_sysfs_ops,
-	.release	= blk_queue_release,
+	.release	= blk_release_queue,
 };
 
 static void blk_debugfs_remove(struct gendisk *disk)
@@ -781,20 +820,20 @@ int blk_register_queue(struct gendisk *disk)
 	int ret;
 
 	mutex_lock(&q->sysfs_dir_lock);
-	kobject_init(&disk->queue_kobj, &blk_queue_ktype);
-	ret = kobject_add(&disk->queue_kobj, &disk_to_dev(disk)->kobj, "queue");
+	ret = kobject_add(&q->kobj, &disk_to_dev(disk)->kobj, "queue");
 	if (ret < 0)
-		goto out_put_queue_kobj;
+		goto out_unlock_dir;
 
 	if (queue_is_mq(q)) {
 		ret = blk_mq_sysfs_register(disk);
 		if (ret)
-			goto out_put_queue_kobj;
+			goto out_del_queue_kobj;
 	}
 	mutex_lock(&q->sysfs_lock);
 
 	mutex_lock(&q->debugfs_mutex);
-	q->debugfs_dir = debugfs_create_dir(disk->disk_name, blk_debugfs_root);
+	q->debugfs_dir = debugfs_create_dir(kobject_name(q->kobj.parent),
+					    blk_debugfs_root);
 	if (queue_is_mq(q))
 		blk_mq_debugfs_register(q);
 	mutex_unlock(&q->debugfs_mutex);
@@ -818,7 +857,7 @@ int blk_register_queue(struct gendisk *disk)
 	blk_throtl_register_queue(q);
 
 	/* Now everything is ready and send out KOBJ_ADD uevent */
-	kobject_uevent(&disk->queue_kobj, KOBJ_ADD);
+	kobject_uevent(&q->kobj, KOBJ_ADD);
 	if (q->elevator)
 		kobject_uevent(&q->elevator->kobj, KOBJ_ADD);
 	mutex_unlock(&q->sysfs_lock);
@@ -847,8 +886,9 @@ out_unregister_ia_ranges:
 out_debugfs_remove:
 	blk_debugfs_remove(disk);
 	mutex_unlock(&q->sysfs_lock);
-out_put_queue_kobj:
-	kobject_put(&disk->queue_kobj);
+out_del_queue_kobj:
+	kobject_del(&q->kobj);
+out_unlock_dir:
 	mutex_unlock(&q->sysfs_dir_lock);
 	return ret;
 }
@@ -895,8 +935,8 @@ void blk_unregister_queue(struct gendisk *disk)
 	mutex_unlock(&q->sysfs_lock);
 
 	/* Now that we've deleted all child objects, we can delete the queue. */
-	kobject_uevent(&disk->queue_kobj, KOBJ_REMOVE);
-	kobject_del(&disk->queue_kobj);
+	kobject_uevent(&q->kobj, KOBJ_REMOVE);
+	kobject_del(&q->kobj);
 	mutex_unlock(&q->sysfs_dir_lock);
 
 	blk_debugfs_remove(disk);
