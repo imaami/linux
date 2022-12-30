@@ -126,9 +126,8 @@ static struct kobj_type blk_crypto_ktype = {
  * If the request_queue has a blk_crypto_profile, create the "crypto"
  * subdirectory in sysfs (/sys/block/$disk/queue/crypto/).
  */
-int blk_crypto_sysfs_register(struct gendisk *disk)
+int blk_crypto_sysfs_register(struct request_queue *q)
 {
-	struct request_queue *q = disk->queue;
 	struct blk_crypto_kobj *obj;
 	int err;
 
@@ -150,9 +149,9 @@ int blk_crypto_sysfs_register(struct gendisk *disk)
 	return 0;
 }
 
-void blk_crypto_sysfs_unregister(struct gendisk *disk)
+void blk_crypto_sysfs_unregister(struct request_queue *q)
 {
-	kobject_put(disk->queue->crypto_kobject);
+	kobject_put(q->crypto_kobject);
 }
 
 static int __init blk_crypto_sysfs_init(void)
