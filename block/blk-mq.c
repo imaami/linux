@@ -261,8 +261,8 @@ EXPORT_SYMBOL_GPL(blk_mq_quiesce_queue_nowait);
  */
 void blk_mq_wait_quiesce_done(struct request_queue *q)
 {
-	if (q->tag_set->flags & BLK_MQ_F_BLOCKING)
-		synchronize_srcu(q->tag_set->srcu);
+	if (blk_queue_has_srcu(q))
+		synchronize_srcu(q->srcu);
 	else
 		synchronize_rcu();
 }
@@ -3918,7 +3918,7 @@ static struct request_queue *blk_mq_init_queue_data(struct blk_mq_tag_set *set,
 	struct request_queue *q;
 	int ret;
 
-	q = blk_alloc_queue(set->numa_node);
+	q = blk_alloc_queue(set->numa_node, set->flags & BLK_MQ_F_BLOCKING);
 	if (!q)
 		return ERR_PTR(-ENOMEM);
 	q->queuedata = queuedata;
@@ -4090,6 +4090,9 @@ static void blk_mq_update_poll_flag(struct request_queue *q)
 int blk_mq_init_allocated_queue(struct blk_mq_tag_set *set,
 		struct request_queue *q)
 {
+	WARN_ON_ONCE(blk_queue_has_srcu(q) !=
+			!!(set->flags & BLK_MQ_F_BLOCKING));
+
 	/* mark the queue as mq asap */
 	q->mq_ops = set->ops;
 
@@ -4346,18 +4349,8 @@ int blk_mq_alloc_tag_set(struct blk_mq_tag_set *set)
 	if (set->nr_maps == 1 && set->nr_hw_queues > nr_cpu_ids)
 		set->nr_hw_queues = nr_cpu_ids;
 
-	if (set->flags & BLK_MQ_F_BLOCKING) {
-		set->srcu = kmalloc(sizeof(*set->srcu), GFP_KERNEL);
-		if (!set->srcu)
-			return -ENOMEM;
-		ret = init_srcu_struct(set->srcu);
-		if (ret)
-			goto out_free_srcu;
-	}
-
-	ret = blk_mq_alloc_tag_set_tags(set, set->nr_hw_queues);
-	if (ret)
-		goto out_cleanup_srcu;
+	if (blk_mq_alloc_tag_set_tags(set, set->nr_hw_queues) < 0)
+		return -ENOMEM;
 
 	ret = -ENOMEM;
 	for (i = 0; i < set->nr_maps; i++) {
@@ -4389,12 +4382,6 @@ out_free_mq_map:
 	}
 	kfree(set->tags);
 	set->tags = NULL;
-out_cleanup_srcu:
-	if (set->flags & BLK_MQ_F_BLOCKING)
-		cleanup_srcu_struct(set->srcu);
-out_free_srcu:
-	if (set->flags & BLK_MQ_F_BLOCKING)
-		kfree(set->srcu);
 	return ret;
 }
 EXPORT_SYMBOL(blk_mq_alloc_tag_set);
@@ -4434,10 +4421,6 @@ void blk_mq_free_tag_set(struct blk_mq_tag_set *set)
 
 	kfree(set->tags);
 	set->tags = NULL;
-	if (set->flags & BLK_MQ_F_BLOCKING) {
-		cleanup_srcu_struct(set->srcu);
-		kfree(set->srcu);
-	}
 }
 EXPORT_SYMBOL(blk_mq_free_tag_set);
 

@@ -739,8 +739,10 @@ queue_attr_store(struct kobject *kobj, struct attribute *attr,
 
 static void blk_free_queue_rcu(struct rcu_head *rcu_head)
 {
-	kmem_cache_free(blk_requestq_cachep,
-			container_of(rcu_head, struct request_queue, rcu_head));
+	struct request_queue *q = container_of(rcu_head, struct request_queue,
+					       rcu_head);
+
+	kmem_cache_free(blk_get_queue_kmem_cache(blk_queue_has_srcu(q)), q);
 }
 
 /**
@@ -776,6 +778,9 @@ static void blk_release_queue(struct kobject *kobj)
 
 	if (queue_is_mq(q))
 		blk_mq_release(q);
+
+	if (blk_queue_has_srcu(q))
+		cleanup_srcu_struct(q->srcu);
 
 	ida_free(&blk_queue_ida, q->id);
 	call_rcu(&q->rcu_head, blk_free_queue_rcu);
