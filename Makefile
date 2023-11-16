@@ -1080,13 +1080,14 @@ ifdef CONFIG_LTO_CLANG
 ifdef CONFIG_LTO_CLANG_THIN
 CC_FLAGS_LTO	:= -flto=thin -fsplit-lto-unit
 KBUILD_LDFLAGS += $(call ld-option,--lto-whole-program-visibility -mllvm -always-rename-promoted-locals=false)
+KBUILD_LDFLAGS	+= --thinlto-jobs=all
 else
 CC_FLAGS_LTO	:= -flto
 endif
 CC_FLAGS_LTO	+= -fvisibility=hidden
 
 # Limit inlining across translation units to reduce binary size
-KBUILD_LDFLAGS += -mllvm -import-instr-limit=5
+KBUILD_LDFLAGS += -mllvm -import-instr-limit=8
 endif
 
 ifdef CONFIG_LTO
