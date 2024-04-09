@@ -4853,9 +4853,6 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 #endif
 
 	if (likely(prev != next)) {
-#ifdef CONFIG_SCHED_BMQ
-		rq->last_ts_switch = rq->clock;
-#endif
 		next->last_ran = rq->clock_task;
 
 		/*printk(KERN_INFO "sched: %px -> %px\n", prev, next);*/
