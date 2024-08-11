@@ -767,14 +767,12 @@ struct task_struct {
 	unsigned int			flags;
 	unsigned int			ptrace;
 
-#ifdef CONFIG_SMP
-	struct __call_single_node	wake_entry;
-#endif
 #if defined(CONFIG_SMP) || defined(CONFIG_SCHED_ALT)
 	int				on_cpu;
 #endif
 
 #ifdef CONFIG_SMP
+	struct __call_single_node	wake_entry;
 #ifndef CONFIG_SCHED_ALT
 	unsigned int			wakee_flips;
 	unsigned long			wakee_flip_decay_ts;
