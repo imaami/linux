@@ -1,15 +1,15 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 6.6.30 Kernel Configuration
+# Linux/x86 6.6.59-zz1 Kernel Configuration
 #
-CONFIG_CC_VERSION_TEXT="gcc (Debian 13.2.0-24) 13.2.0"
+CONFIG_CC_VERSION_TEXT="gcc (Debian 14.2.0-8) 14.2.0"
 CONFIG_CC_IS_GCC=y
-CONFIG_GCC_VERSION=130200
+CONFIG_GCC_VERSION=140200
 CONFIG_CLANG_VERSION=0
 CONFIG_AS_IS_GNU=y
-CONFIG_AS_VERSION=24200
+CONFIG_AS_VERSION=24301
 CONFIG_LD_IS_BFD=y
-CONFIG_LD_VERSION=24200
+CONFIG_LD_VERSION=24301
 CONFIG_LLD_VERSION=0
 CONFIG_CC_CAN_LINK=y
 CONFIG_CC_CAN_LINK_STATIC=y
@@ -491,7 +491,6 @@ CONFIG_PHYSICAL_ALIGN=0x200000
 CONFIG_DYNAMIC_MEMORY_LAYOUT=y
 CONFIG_RANDOMIZE_MEMORY=y
 CONFIG_RANDOMIZE_MEMORY_PHYSICAL_PADDING=0x1
-CONFIG_ADDRESS_MASKING=y
 CONFIG_HOTPLUG_CPU=y
 # CONFIG_COMPAT_VDSO is not set
 CONFIG_LEGACY_VSYSCALL_XONLY=y
@@ -1019,6 +1018,7 @@ CONFIG_MIGRATION=y
 CONFIG_DEVICE_MIGRATION=y
 CONFIG_ARCH_ENABLE_HUGEPAGE_MIGRATION=y
 CONFIG_CONTIG_ALLOC=y
+CONFIG_PCP_BATCH_SCALE_MAX=5
 CONFIG_PHYS_ADDR_T_64BIT=y
 CONFIG_MMU_NOTIFIER=y
 CONFIG_KSM=y
@@ -1782,8 +1782,8 @@ CONFIG_DEVTMPFS=y
 #
 CONFIG_FW_LOADER=y
 CONFIG_FW_LOADER_PAGED_BUF=y
-CONFIG_EXTRA_FIRMWARE="amd-ucode/microcode_amd_fam17h.bin amd-ucode/microcode_amd_fam19h.bin rpm_firmware.bin rtl_nic/rtl8125b-2.fw intel/ibt-0041-0041.sfi iwlwifi-ty-a0-gf-a0-73.ucode iwlwifi-ty-a0-gf-a0.pnvm amdgpu/sienna_cichlid_ce.bin amdgpu/sienna_cichlid_dmcub.bin amdgpu/sienna_cichlid_me.bin amdgpu/sienna_cichlid_mec.bin amdgpu/sienna_cichlid_mec2.bin amdgpu/sienna_cichlid_pfp.bin amdgpu/sienna_cichlid_rlc.bin amdgpu/sienna_cichlid_sdma.bin amdgpu/sienna_cichlid_smc.bin amdgpu/sienna_cichlid_sos.bin amdgpu/sienna_cichlid_ta.bin amdgpu/sienna_cichlid_vcn.bin"
-CONFIG_EXTRA_FIRMWARE_DIR="/lib/firmware"
+CONFIG_EXTRA_FIRMWARE="amd-ucode/microcode_amd_fam17h.bin amd-ucode/microcode_amd_fam19h.bin rpm_firmware.bin rtl_nic/rtl8125b-2.fw intel/ibt-0041-0041.sfi iwlwifi-ty-a0-gf-a0-89.ucode iwlwifi-ty-a0-gf-a0.pnvm amdgpu/sienna_cichlid_ce.bin amdgpu/sienna_cichlid_dmcub.bin amdgpu/sienna_cichlid_me.bin amdgpu/sienna_cichlid_mec.bin amdgpu/sienna_cichlid_mec2.bin amdgpu/sienna_cichlid_pfp.bin amdgpu/sienna_cichlid_rlc.bin amdgpu/sienna_cichlid_sdma.bin amdgpu/sienna_cichlid_smc.bin amdgpu/sienna_cichlid_sos.bin amdgpu/sienna_cichlid_ta.bin amdgpu/sienna_cichlid_vcn.bin"
+CONFIG_EXTRA_FIRMWARE_DIR="/usr/lib/firmware"
 # CONFIG_FW_LOADER_USER_HELPER is not set
 CONFIG_FW_LOADER_COMPRESS=y
 CONFIG_FW_LOADER_COMPRESS_XZ=y
@@ -3935,6 +3935,7 @@ CONFIG_MEDIA_TUNER=y
 # Graphics support
 #
 CONFIG_APERTURE_HELPERS=y
+CONFIG_SCREEN_INFO=y
 CONFIG_VIDEO_CMDLINE=y
 CONFIG_VIDEO_NOMODESET=y
 # CONFIG_AUXDISPLAY is not set
@@ -4002,7 +4003,6 @@ CONFIG_HSA_AMD_SVM=y
 # CONFIG_DRM_I915 is not set
 # CONFIG_DRM_VGEM is not set
 # CONFIG_DRM_VKMS is not set
-# CONFIG_DRM_VMWGFX is not set
 # CONFIG_DRM_GMA500 is not set
 # CONFIG_DRM_UDL is not set
 # CONFIG_DRM_AST is not set
@@ -4095,6 +4095,7 @@ CONFIG_FB_SYS_IMAGEBLIT=y
 # CONFIG_FB_FOREIGN_ENDIAN is not set
 CONFIG_FB_SYS_FOPS=y
 CONFIG_FB_DEFERRED_IO=y
+CONFIG_FB_IOMEM_FOPS=y
 CONFIG_FB_IOMEM_HELPERS=y
 CONFIG_FB_SYSMEM_HELPERS=y
 CONFIG_FB_SYSMEM_HELPERS_DEFERRED=y
@@ -4420,6 +4421,7 @@ CONFIG_HID_WACOM=m
 # CONFIG_HID_ZYDACRON is not set
 # CONFIG_HID_SENSOR_HUB is not set
 # CONFIG_HID_ALPS is not set
+# CONFIG_HID_MCP2200 is not set
 # CONFIG_HID_MCP2221 is not set
 # end of Special HID drivers
 
@@ -5431,6 +5433,9 @@ CONFIG_KEYS=y
 # CONFIG_ENCRYPTED_KEYS is not set
 # CONFIG_KEY_DH_OPERATIONS is not set
 # CONFIG_SECURITY_DMESG_RESTRICT is not set
+CONFIG_PROC_MEM_ALWAYS_FORCE=y
+# CONFIG_PROC_MEM_FORCE_PTRACE is not set
+# CONFIG_PROC_MEM_NO_FORCE is not set
 CONFIG_SECURITY=y
 CONFIG_SECURITYFS=y
 CONFIG_SECURITY_NETWORK=y
@@ -5503,6 +5508,7 @@ CONFIG_CRYPTO_ALGAPI=y
 CONFIG_CRYPTO_ALGAPI2=y
 CONFIG_CRYPTO_AEAD=y
 CONFIG_CRYPTO_AEAD2=y
+CONFIG_CRYPTO_SIG=y
 CONFIG_CRYPTO_SIG2=y
 CONFIG_CRYPTO_SKCIPHER=y
 CONFIG_CRYPTO_SKCIPHER2=y
@@ -5830,7 +5836,6 @@ CONFIG_SWIOTLB=y
 # CONFIG_SWIOTLB_DYNAMIC is not set
 # CONFIG_DMA_API_DEBUG is not set
 CONFIG_SGL_ALLOC=y
-CONFIG_FORCE_NR_CPUS=y
 CONFIG_CPU_RMAP=y
 CONFIG_DQL=y
 CONFIG_GLOB=y
