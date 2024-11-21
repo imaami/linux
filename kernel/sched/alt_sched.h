@@ -1,5 +1,5 @@
-#ifndef ALT_SCHED_H
-#define ALT_SCHED_H
+#ifndef _KERNEL_SCHED_ALT_SCHED_H
+#define _KERNEL_SCHED_ALT_SCHED_H
 
 #include <linux/context_tracking.h>
 #include <linux/profile.h>
@@ -13,6 +13,29 @@
 #include "../workqueue_internal.h"
 
 #include "cpupri.h"
+
+#ifdef CONFIG_CGROUP_SCHED
+/* task group related information */
+struct task_group {
+	struct cgroup_subsys_state css;
+
+	struct rcu_head rcu;
+	struct list_head list;
+
+	struct task_group *parent;
+	struct list_head siblings;
+	struct list_head children;
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	unsigned long		shares;
+#endif
+};
+
+extern struct task_group *sched_create_group(struct task_group *parent);
+extern void sched_online_group(struct task_group *tg,
+			       struct task_group *parent);
+extern void sched_destroy_group(struct task_group *tg);
+extern void sched_release_group(struct task_group *tg);
+#endif /* CONFIG_CGROUP_SCHED */
 
 #define MIN_SCHED_NORMAL_PRIO	(32)
 /*
@@ -103,13 +126,20 @@ static inline int task_on_rq_migrating(struct task_struct *p)
 	return READ_ONCE(p->on_rq) == TASK_ON_RQ_MIGRATING;
 }
 
-/*
- * wake flags
- */
+/* Wake flags. The first three directly map to some SD flag value */
+#define WF_EXEC         0x02 /* Wakeup after exec; maps to SD_BALANCE_EXEC */
 #define WF_FORK         0x04 /* Wakeup after fork; maps to SD_BALANCE_FORK */
+#define WF_TTWU         0x08 /* Wakeup;            maps to SD_BALANCE_WAKE */
+
 #define WF_SYNC         0x10 /* Waker goes to sleep after wakeup */
 #define WF_MIGRATED     0x20 /* Internal use, task got migrated */
 #define WF_CURRENT_CPU  0x40 /* Prefer to move the wakee to the current CPU. */
+
+#ifdef CONFIG_SMP
+static_assert(WF_EXEC == SD_BALANCE_EXEC);
+static_assert(WF_FORK == SD_BALANCE_FORK);
+static_assert(WF_TTWU == SD_BALANCE_WAKE);
+#endif
 
 #define SCHED_QUEUE_BITS	(SCHED_LEVELS - 1)
 
@@ -126,6 +156,16 @@ struct balance_callback {
 	void (*func)(struct rq *rq);
 };
 
+typedef void (*balance_func_t)(struct rq *rq, int cpu);
+typedef void (*set_idle_mask_func_t)(unsigned int cpu, struct cpumask *dstp);
+typedef void (*clear_idle_mask_func_t)(int cpu, struct cpumask *dstp);
+
+struct balance_arg {
+	struct task_struct	*task;
+	int			active;
+	cpumask_t		*cpumask;
+};
+
 /*
  * This is the main, per-CPU runqueue data structure.
  * This data should only be modified by the local cpu.
@@ -137,14 +177,15 @@ struct rq {
 	struct task_struct __rcu	*curr;
 	struct task_struct		*idle;
 	struct task_struct		*stop;
-	struct task_struct		*skip;
 	struct mm_struct		*prev_mm;
 
-	struct sched_queue	queue;
+	struct sched_queue		queue		____cacheline_aligned;
+
+	int				prio;
 #ifdef CONFIG_SCHED_PDS
-	u64			time_edge;
+	int				prio_idx;
+	u64				time_edge;
 #endif
-	unsigned long		prio;
 
 	/* switch count */
 	u64 nr_switches;
@@ -160,6 +201,9 @@ struct rq {
 	int membarrier_state;
 #endif
 
+	set_idle_mask_func_t	set_idle_mask_func;
+	clear_idle_mask_func_t	clear_idle_mask_func;
+
 #ifdef CONFIG_SMP
 	int cpu;		/* cpu of this runqueue */
 	bool online;
@@ -172,10 +216,10 @@ struct rq {
 	struct sched_avg	avg_irq;
 #endif
 
-#ifdef CONFIG_SCHED_SMT
-	int active_balance;
+	balance_func_t		balance_func;
+	struct balance_arg	active_balance_arg		____cacheline_aligned;
 	struct cpu_stop_work	active_balance_work;
-#endif
+
 	struct balance_callback	*balance_callback;
 #ifdef CONFIG_HOTPLUG_CPU
 	struct rcuwait		hotplug_wait;
@@ -205,9 +249,6 @@ struct rq {
 	/* Ensure that all clocks are in the same cache line */
 	u64			clock ____cacheline_aligned;
 	u64			clock_task;
-#ifdef CONFIG_SCHED_BMQ
-	u64			last_ts_switch;
-#endif
 
 	unsigned int  nr_running;
 	unsigned long nr_uninterruptible;
@@ -256,6 +297,8 @@ struct rq {
 	cpumask_var_t		scratch_mask;
 };
 
+extern unsigned int sysctl_sched_base_slice;
+
 extern unsigned long rq_load_util(struct rq *rq, unsigned long max);
 
 extern unsigned long calc_load_update;
@@ -287,7 +330,6 @@ static inline void unregister_sched_domain_sysctl(void)
 extern bool sched_smp_initialized;
 
 enum {
-	ITSELF_LEVEL_SPACE_HOLDER,
 #ifdef CONFIG_SCHED_SMT
 	SMT_LEVEL_SPACE_HOLDER,
 #endif
@@ -315,10 +357,6 @@ static inline int best_mask_cpu(int cpu, const cpumask_t *mask)
 	return __best_mask_cpu(mask, per_cpu(sched_cpu_topo_masks, cpu));
 }
 
-extern void flush_smp_call_function_queue(void);
-
-#else  /* !CONFIG_SMP */
-static inline void flush_smp_call_function_queue(void) { }
 #endif
 
 #ifndef arch_scale_freq_tick
@@ -434,36 +472,6 @@ rq_unlock_irq(struct rq *rq, struct rq_flags *rf)
 	raw_spin_unlock_irq(&rq->lock);
 }
 
-static inline void
-rq_lock_irqsave(struct rq *rq, struct rq_flags *rf)
-	__acquires(rq->lock)
-{
-	raw_spin_lock_irqsave(&rq->lock, rf->flags);
-}
-
-static inline void
-rq_unlock_irqrestore(struct rq *rq, struct rq_flags *rf)
-	__releases(rq->lock)
-{
-	raw_spin_unlock_irqrestore(&rq->lock, rf->flags);
-}
-
-DEFINE_LOCK_GUARD_1(rq_lock, struct rq,
-		    rq_lock(_T->lock, &_T->rf),
-		    rq_unlock(_T->lock, &_T->rf),
-		    struct rq_flags rf)
-
-DEFINE_LOCK_GUARD_1(rq_lock_irq, struct rq,
-		    rq_lock_irq(_T->lock, &_T->rf),
-		    rq_unlock_irq(_T->lock, &_T->rf),
-		    struct rq_flags rf)
-
-DEFINE_LOCK_GUARD_1(rq_lock_irqsave, struct rq,
-		    rq_lock_irqsave(_T->lock, &_T->rf),
-		    rq_unlock_irqrestore(_T->lock, &_T->rf),
-		    struct rq_flags rf)
-
-
 static inline struct rq *
 this_rq_lock_irq(struct rq_flags *rf)
 	__acquires(rq->lock)
@@ -522,8 +530,6 @@ static inline bool task_on_cpu(struct task_struct *p)
 	return p->on_cpu;
 }
 
-extern int task_running_nice(struct task_struct *p);
-
 extern struct static_key_false sched_schedstats;
 
 #ifdef CONFIG_CPU_IDLE
@@ -558,6 +564,8 @@ static inline int cpu_of(const struct rq *rq)
 	return 0;
 #endif
 }
+
+extern void resched_cpu(int cpu);
 
 #include "stats.h"
 
@@ -626,6 +634,12 @@ static inline int sched_tick_offload_init(void) { return 0; }
 #else /* arch_scale_freq_capacity */
 #define arch_scale_freq_invariant()	(false)
 #endif
+
+#ifdef CONFIG_SMP
+unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
+				 unsigned long min,
+				 unsigned long max);
+#endif /* CONFIG_SMP */
 
 extern void schedule_idle(void);
 
@@ -941,4 +955,35 @@ static inline void task_tick_mm_cid(struct rq *rq, struct task_struct *curr) { }
 static inline void init_sched_mm_cid(struct task_struct *t) { }
 #endif
 
-#endif /* ALT_SCHED_H */
+#ifdef CONFIG_SMP
+extern struct balance_callback balance_push_callback;
+
+static inline void
+queue_balance_callback(struct rq *rq,
+		       struct balance_callback *head,
+		       void (*func)(struct rq *rq))
+{
+	lockdep_assert_rq_held(rq);
+
+	/*
+	 * Don't (re)queue an already queued item; nor queue anything when
+	 * balance_push() is active, see the comment with
+	 * balance_push_callback.
+	 */
+	if (unlikely(head->next || rq->balance_callback == &balance_push_callback))
+		return;
+
+	head->func = func;
+	head->next = rq->balance_callback;
+	rq->balance_callback = head;
+}
+#endif /* CONFIG_SMP */
+
+#ifdef CONFIG_SCHED_BMQ
+#include "bmq.h"
+#endif
+#ifdef CONFIG_SCHED_PDS
+#include "pds.h"
+#endif
+
+#endif /* _KERNEL_SCHED_ALT_SCHED_H */
