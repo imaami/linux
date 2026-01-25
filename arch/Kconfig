@@ -863,6 +863,17 @@ config LTO_CLANG_THIN
 	  If unsure, say Y.
 endchoice
 
+config INLINE_LTO_CLANG
+	int "Size limit of functions getting inlined"
+	range 0 20
+	depends on LTO_CLANG || LTO_CLANG_THIN
+	default 5
+	help
+	  Limit inlining across translation units to reduce binary size.
+	  Default is 5 units, a higher setting might produce a slightly
+	  faster kernel at the expensive of much bigger binary size, therefore
+	  the maximum limit is set to 20.
+
 config ARCH_SUPPORTS_AUTOFDO_CLANG
 	bool
 
