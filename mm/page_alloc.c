@@ -5897,11 +5897,11 @@ static int zone_batchsize(struct zone *zone)
 
 	/*
 	 * The number of pages to batch allocate is either ~0.025%
-	 * of the zone or 256KB, whichever is smaller. The batch
+	 * of the zone or 1024KB, whichever is smaller. The batch
 	 * size is striking a balance between allocation latency
 	 * and zone lock contention.
 	 */
-	batch = min(zone_managed_pages(zone) >> 12, SZ_256K / PAGE_SIZE);
+	batch = min(zone_managed_pages(zone) >> 12, 4 * SZ_256K / PAGE_SIZE);
 	if (batch <= 1)
 		return 1;
 
