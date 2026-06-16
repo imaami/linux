@@ -267,7 +267,7 @@ const char * const migratetype_names[MIGRATE_TYPES] = {
 
 int min_free_kbytes = 1024;
 int user_min_free_kbytes = -1;
-static int watermark_boost_factor __read_mostly = 15000;
+static int watermark_boost_factor __read_mostly;
 static int watermark_scale_factor = 10;
 int defrag_mode;
 
@@ -276,7 +276,7 @@ int movable_zone;
 EXPORT_SYMBOL(movable_zone);
 
 #if MAX_NUMNODES > 1
-unsigned int nr_node_ids __read_mostly = MAX_NUMNODES;
+unsigned int nr_node_ids __ro_after_init = MAX_NUMNODES;
 unsigned int nr_online_nodes __read_mostly = 1;
 EXPORT_SYMBOL(nr_node_ids);
 EXPORT_SYMBOL(nr_online_nodes);
