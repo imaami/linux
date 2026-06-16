@@ -930,6 +930,9 @@ KBUILD_CFLAGS	+= -fno-delete-null-pointer-checks
 ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
 KBUILD_CFLAGS += -O2
 KBUILD_RUSTFLAGS += -Copt-level=2
+else ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3
+KBUILD_CFLAGS += -O3
+KBUILD_RUSTFLAGS += -Copt-level=2
 else ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS += -Os
 KBUILD_RUSTFLAGS += -Copt-level=s
@@ -1077,13 +1080,14 @@ ifdef CONFIG_LTO_CLANG
 ifdef CONFIG_LTO_CLANG_THIN
 CC_FLAGS_LTO	:= -flto=thin -fsplit-lto-unit
 KBUILD_LDFLAGS += $(call ld-option,--lto-whole-program-visibility -mllvm -always-rename-promoted-locals=false)
+KBUILD_LDFLAGS	+= --thinlto-jobs=all
 else
 CC_FLAGS_LTO	:= -flto
 endif
 CC_FLAGS_LTO	+= -fvisibility=hidden
 
 # Limit inlining across translation units to reduce binary size
-KBUILD_LDFLAGS += -mllvm -import-instr-limit=5
+KBUILD_LDFLAGS += -mllvm -import-instr-limit=$(CONFIG_INLINE_LTO_CLANG)
 endif
 
 ifdef CONFIG_LTO

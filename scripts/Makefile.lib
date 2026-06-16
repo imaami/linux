@@ -461,6 +461,13 @@ quiet_cmd_xzmisc = XZMISC  $@
 # decompression is used, like initramfs decompression, zstd22 should likely not
 # be used because it would require zstd to allocate a 128 MB buffer.
 
+ifdef CONFIG_ZSTD_COMPRESSION_LVL
+zstd_comp_lvl	:= $(CONFIG_ZSTD_COMPRESSION_LVL)
+ifeq ($(call test-gt, $(zstd_comp_lvl), 19),y)
+zstd_comp_lvl	+= --ultra
+endif
+endif
+
 quiet_cmd_zstd = ZSTD    $@
       cmd_zstd = cat $(real-prereqs) | $(ZSTD) -19 > $@
 
@@ -468,7 +475,7 @@ quiet_cmd_zstd22 = ZSTD22  $@
       cmd_zstd22 = cat $(real-prereqs) | $(ZSTD) -22 --ultra > $@
 
 quiet_cmd_zstd22_with_size = ZSTD22  $@
-      cmd_zstd22_with_size = { cat $(real-prereqs) | $(ZSTD) -22 --ultra; $(size_append); } > $@
+      cmd_zstd22_with_size = { cat $(real-prereqs) | $(ZSTD) -T0 -$(zstd_comp_lvl); $(size_append); } > $@
 
 # ASM offsets
 # ---------------------------------------------------------------------------
