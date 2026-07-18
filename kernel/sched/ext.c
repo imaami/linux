@@ -2324,12 +2324,21 @@ static void move_remote_task_to_local_dsq(struct task_struct *p, u64 enq_flags,
  *   no to the BPF scheduler initiated migrations while offline.
  *
  * The caller must ensure that @p and @rq are on different CPUs.
+ * If enforce == true, caller must hold @p's rq lock.
  */
 static bool task_can_run_on_remote_rq(struct scx_sched *sch,
 				      struct task_struct *p, struct rq *rq,
 				      bool enforce)
 {
 	s32 cpu = cpu_of(rq);
+
+	/*
+	 * To prevent races with @p still running on its old CPU while switching
+	 * out, make sure we're holding @p's rq lock so as not to risk
+	 * erroneously killing the BPF scheduler.
+	 */
+	if (enforce)
+		lockdep_assert_rq_held(task_rq(p));
 
 	WARN_ON_ONCE(task_cpu(p) == cpu);
 
@@ -2598,13 +2607,6 @@ static void dispatch_to_local_dsq(struct scx_sched *sch, struct rq *rq,
 		return;
 	}
 
-	if (src_rq != dst_rq &&
-	    unlikely(!task_can_run_on_remote_rq(sch, p, dst_rq, true))) {
-		dispatch_enqueue(sch, rq, find_global_dsq(sch, task_cpu(p)), p,
-				 enq_flags | SCX_ENQ_CLEAR_OPSS | SCX_ENQ_GDSQ_FALLBACK);
-		return;
-	}
-
 	/*
 	 * @p is on a possibly remote @src_rq which we need to lock to move the
 	 * task. If dequeue is in progress, it'd be locking @src_rq and waiting
@@ -2631,6 +2633,7 @@ static void dispatch_to_local_dsq(struct scx_sched *sch, struct rq *rq,
 	/* task_rq couldn't have changed if we're still the holding cpu */
 	if (likely(p->scx.holding_cpu == raw_smp_processor_id()) &&
 	    !WARN_ON_ONCE(src_rq != task_rq(p))) {
+		bool fallback = false;
 		/*
 		 * If @p is staying on the same rq, there's no need to go
 		 * through the full deactivate/activate cycle. Optimize by
@@ -2640,6 +2643,11 @@ static void dispatch_to_local_dsq(struct scx_sched *sch, struct rq *rq,
 			p->scx.holding_cpu = -1;
 			dispatch_enqueue(sch, dst_rq, &dst_rq->scx.local_dsq, p,
 					 enq_flags);
+		} else if (unlikely(!task_can_run_on_remote_rq(sch, p, dst_rq, true))) {
+			p->scx.holding_cpu = -1;
+			fallback = true;
+			dispatch_enqueue(sch, src_rq, find_global_dsq(sch, task_cpu(p)),
+					 p, enq_flags | SCX_ENQ_GDSQ_FALLBACK);
 		} else {
 			move_remote_task_to_local_dsq(p, enq_flags,
 						      src_rq, dst_rq);
@@ -2648,7 +2656,7 @@ static void dispatch_to_local_dsq(struct scx_sched *sch, struct rq *rq,
 		}
 
 		/* if the destination CPU is idle, wake it up */
-		if (sched_class_above(p->sched_class, dst_rq->curr->sched_class))
+		if (!fallback && sched_class_above(p->sched_class, dst_rq->curr->sched_class))
 			resched_curr(dst_rq);
 	}
 
@@ -2985,24 +2993,38 @@ static void set_next_task_scx(struct rq *rq, struct task_struct *p, bool first)
 
 	/*
 	 * @p is getting newly scheduled or got kicked after someone updated its
-	 * slice. Refresh whether tick can be stopped. See scx_can_stop_tick().
+	 * slice. Update SCX_RQ_CAN_STOP_TICK to reflect whether the tick can be
+	 * stopped. See scx_can_stop_tick().
+	 *
+	 * Moreover, refresh the load_avgs just when transitioning in and out of
+	 * nohz. In the future, we might want to add a mechanism to update
+	 * load_avgs periodically on tick-stopped CPUs.
 	 */
-	if ((p->scx.slice == SCX_SLICE_INF) !=
-	    (bool)(rq->scx.flags & SCX_RQ_CAN_STOP_TICK)) {
-		if (p->scx.slice == SCX_SLICE_INF)
+	if (p->scx.slice == SCX_SLICE_INF) {
+		if (!(rq->scx.flags & SCX_RQ_CAN_STOP_TICK)) {
+			/*
+			 * Bypass mode always assigns finite slices, so @p
+			 * can't have an infinite slice while bypassing.
+			 * Therefore, sched_update_tick_dependency() can safely
+			 * evaluate the outgoing task.
+			 */
 			rq->scx.flags |= SCX_RQ_CAN_STOP_TICK;
-		else
-			rq->scx.flags &= ~SCX_RQ_CAN_STOP_TICK;
+			sched_update_tick_dependency(rq);
 
-		sched_update_tick_dependency(rq);
+			update_other_load_avgs(rq);
+		}
+	} else {
+		if (rq->scx.flags & SCX_RQ_CAN_STOP_TICK) {
+			rq->scx.flags &= ~SCX_RQ_CAN_STOP_TICK;
+			update_other_load_avgs(rq);
+		}
 
 		/*
-		 * For now, let's refresh the load_avgs just when transitioning
-		 * in and out of nohz. In the future, we might want to add a
-		 * mechanism which calls the following periodically on
-		 * tick-stopped CPUs.
+		 * @rq still references the outgoing scheduling context. A finite
+		 * slice is sufficient by itself to require the tick.
 		 */
-		update_other_load_avgs(rq);
+		if (tick_nohz_full_cpu(cpu_of(rq)))
+			tick_nohz_dep_set_cpu(cpu_of(rq), TICK_DEP_BIT_SCHED);
 	}
 }
 
@@ -3660,6 +3682,13 @@ static void scx_disable_task(struct scx_sched *sch, struct task_struct *p)
 	scx_set_task_state(p, SCX_TASK_READY);
 
 	/*
+	 * Reset the SCX-managed fields when @p leaves the BPF scheduler's
+	 * control, after ops.disable() has observed their final values.
+	 */
+	p->scx.dsq_vtime = 0;
+	p->scx.slice = 0;
+
+	/*
 	 * Verify the task is not in BPF scheduler's custody. If flag
 	 * transitions are consistent, the flag should always be clear
 	 * here.
@@ -3902,6 +3931,17 @@ static void reweight_task_scx(struct rq *rq, struct task_struct *p,
 	lockdep_assert_rq_held(task_rq(p));
 
 	if (task_dead_and_done(p))
+		return;
+
+	/*
+	 * When switching sched_class away from SCX, reweight_task_scx()
+	 * is called _after_ scx_disable_task(). Skip calling ops.set_weight()
+	 * since the BPF scheduler may have already forgotten the task in
+	 * ops.disable().
+	 * p->scx.weight will be recalculated in scx_enable_task() if the task
+	 * ever returns to SCX class.
+	 */
+	if (scx_get_task_state(p) != SCX_TASK_ENABLED)
 		return;
 
 	p->scx.weight = sched_weight_to_cgroup(scale_load_down(lw->weight));
@@ -4278,6 +4318,15 @@ bool scx_can_stop_tick(struct rq *rq)
 	struct scx_sched *sch = scx_task_sched(p);
 
 	if (p->sched_class != &ext_sched_class)
+		return true;
+
+	/*
+	 * @rq->curr may still reference an outgoing EXT task after it has been
+	 * dequeued. If no EXT tasks are accounted on @rq, ignore its stale
+	 * slice state. If another task is dispatched from a DSQ,
+	 * set_next_task_scx() will update the dependency for the incoming task.
+	 */
+	if (!rq->scx.nr_running)
 		return true;
 
 	if (scx_bypassing(sch, cpu_of(rq)))
