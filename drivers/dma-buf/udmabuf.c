@@ -20,9 +20,13 @@ static int list_limit = 1024;
 module_param(list_limit, int, 0644);
 MODULE_PARM_DESC(list_limit, "udmabuf_create_list->count limit. Default is 1024.");
 
-static int size_limit_mb = 64;
+#ifdef CONFIG_UDMABUF_SIZE_LIMIT_MBYTES
+static int size_limit_mb = CONFIG_UDMABUF_SIZE_LIMIT_MBYTES;
+#else
+static int size_limit_mb = 256;
+#endif
 module_param(size_limit_mb, int, 0644);
-MODULE_PARM_DESC(size_limit_mb, "Max size of a dmabuf, in megabytes. Default is 64.");
+MODULE_PARM_DESC(size_limit_mb, "Max size of a dmabuf, in megabytes. Default is 256.");
 
 struct udmabuf {
 	pgoff_t pagecount;
