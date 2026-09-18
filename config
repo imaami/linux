@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 7.2.5-zz1 Kernel Configuration
+# Linux/x86 7.2.6-zz1 Kernel Configuration
 #
 CONFIG_CC_VERSION_TEXT="gcc (Debian 16.2.0-2) 16.2.0"
 CONFIG_CC_IS_GCC=y
